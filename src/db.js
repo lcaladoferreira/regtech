@@ -6,7 +6,7 @@ import { seedDatabase } from './seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
-export const DATABASE_PATH = resolve(repoRoot, 'data', 'regtech.sqlite');
+export const DATABASE_PATH = process.env.DATABASE_PATH || (process.env.VERCEL === '1' ? '/tmp/regtech.sqlite' : resolve(repoRoot, 'data', 'regtech.sqlite'));
 
 export function createDatabase(path = DATABASE_PATH, { seed = true } = {}) {
   mkdirSync(dirname(path), { recursive: true });
