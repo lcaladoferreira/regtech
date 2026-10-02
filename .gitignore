@@ -1,0 +1,9 @@
+# Local database and generated demonstration artifacts
+/data/*.sqlite
+/data/*.sqlite-shm
+/data/*.sqlite-wal
+/storage/
+
+# Logs and temporary files
+*.log
+.DS_Store

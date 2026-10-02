@@ -1,0 +1,16 @@
+{
+  "name": "lcf-regulatory-data-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Auditable, multi-regulator regulatory data intelligence platform (zero-dependency Node + SQLite demo).",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "test:watch": "node --disable-warning=ExperimentalWarning --test --watch"
+  }
+}
