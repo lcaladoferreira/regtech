@@ -14,6 +14,7 @@
  * - parsers that cannot extract text leave parse_status=UNSTRUCTURED/FAILED — never fake output.
  */
 import { createHash, randomUUID } from 'node:crypto';
+import { request as httpsRequest } from 'node:https';
 import { calculateImpacts } from './impact-engine.js';
 import { compareNormativeText, compareSchemas } from './schema-diff.js';
 import { parseSnapshot, parserFor } from '../parsers/index.js';
@@ -146,7 +147,9 @@ async function collectOneSource(db, storage, source, { fetcher, timeoutMs, attem
       lastError = null;
       break;
     } catch (error) {
-      lastError = error?.name === 'AbortError' ? new Error(`Request timed out after ${timeoutMs} ms (attempt ${attempt}).`) : error;
+      lastError = error?.name === 'AbortError'
+        ? new Error(`Request timed out after ${timeoutMs} ms (attempt ${attempt}).`)
+        : new Error(describeNetworkError(error));
       response = null;
       if (attempt < attempts) await sleep(BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)]);
     }
@@ -318,8 +321,8 @@ async function logIngestionError(db, jobRunId, source, errorType, message, { att
     const since = new Date(Date.now() - dedupeWindowHours * 3600_000).toISOString();
     const open = await db.prepare('SELECT id FROM ingestion_errors WHERE source_id = ? AND resolved = 0 AND error_type = ? AND timestamp >= ?').get(source?.id || null, errorType, since);
     if (open) {
-      await db.prepare('UPDATE ingestion_errors SET message = ?, timestamp = ?, attempt_count = attempt_count + ?, http_status = COALESCE(?, http_status) WHERE id = ?')
-        .run(message, new Date().toISOString(), attempts, httpStatus, open.id);
+      await db.prepare('UPDATE ingestion_errors SET source = ?, message = ?, timestamp = ?, attempt_count = attempt_count + ?, http_status = COALESCE(?, http_status) WHERE id = ?')
+        .run(source?.source_url || 'unknown', message, new Date().toISOString(), attempts, httpStatus, open.id);
       return open.id;
     }
   }
@@ -548,7 +551,17 @@ async function fetchOfficialSource(startUrl, fetcher, { signal, headers }) {
   let currentUrl = startUrl;
   const maxRedirects = 5;
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
-    const response = await fetcher(currentUrl, { method: 'GET', redirect: 'manual', signal, headers });
+    let response;
+    try {
+      response = await fetcher(currentUrl, { method: 'GET', redirect: 'manual', signal, headers });
+    } catch (error) {
+      const host = new URL(currentUrl).hostname.toLowerCase();
+      const isPlanalto = host === 'planalto.gov.br' || host === 'www.planalto.gov.br';
+      // Some serverless runtimes fail before HTTP negotiation with the legacy Planalto
+      // endpoint. Retry the same official HTTPS URL over IPv4 with normal TLS validation.
+      if (!isPlanalto || fetcher !== globalThis.fetch) throw error;
+      response = await fetchHttpsIpv4(currentUrl, { signal, headers });
+    }
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers?.get?.('location');
     if (!location) throw new Error(`Official source returned HTTP ${response.status} without a Location header.`);
@@ -558,6 +571,61 @@ async function fetchOfficialSource(startUrl, fetcher, { signal, headers }) {
     currentUrl = nextUrl;
   }
   throw new Error('Official source redirect handling failed.');
+}
+
+function fetchHttpsIpv4(url, { signal, headers } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(url, {
+      method: 'GET',
+      family: 4,
+      headers,
+      rejectUnauthorized: true,
+    }, (res) => {
+      const chunks = [];
+      let size = 0;
+      res.on('data', (chunk) => {
+        size += chunk.length;
+        if (size > MAX_BYTES) {
+          req.destroy(new Error(`Source exceeds ${MAX_BYTES} byte collection limit while streaming.`));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on('end', () => {
+        const body = Buffer.concat(chunks);
+        const responseHeaders = new Headers();
+        for (const [name, value] of Object.entries(res.headers || {})) {
+          if (Array.isArray(value)) for (const item of value) responseHeaders.append(name, item);
+          else if (value !== undefined) responseHeaders.set(name, String(value));
+        }
+        resolve({
+          status: res.statusCode || 0,
+          statusText: res.statusMessage || '',
+          ok: (res.statusCode || 0) >= 200 && (res.statusCode || 0) < 300,
+          headers: responseHeaders,
+          url,
+          async arrayBuffer() { return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength); },
+        });
+      });
+    });
+    req.on('error', reject);
+    if (signal) {
+      const abort = () => req.destroy(Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' }));
+      if (signal.aborted) abort();
+      else signal.addEventListener('abort', abort, { once: true });
+    }
+    req.end();
+  });
+}
+
+function describeNetworkError(error) {
+  if (!error) return 'Unknown network error.';
+  const cause = error.cause || null;
+  const parts = [error.message || String(error)];
+  for (const value of [cause?.code, cause?.errno, cause?.syscall, cause?.hostname, cause?.message]) {
+    if (value && !parts.includes(String(value))) parts.push(String(value));
+  }
+  return parts.join(' | ').slice(0, 900);
 }
 
 function httpError(status) {
