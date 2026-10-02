@@ -54,7 +54,13 @@ export function parseSnapshot(parserName, bytes, mimeType) {
   }
   try {
     const result = parser(bytes);
-    return { parser: parserName, parse_status: result.parse_status, extracted_text: result.extracted_text ?? null, fields: result.fields || [], notes: result.notes || '' };
+    return {
+      parser: parserName,
+      parse_status: result.parse_status,
+      extracted_text: sanitizeTextForDatabase(result.extracted_text),
+      fields: result.fields || [],
+      notes: sanitizeTextForDatabase(result.notes) || '',
+    };
   } catch (error) {
     return {
       parser: parserName,
@@ -73,4 +79,17 @@ function asText(bytes) {
 function asBytes(bytes) {
   if (!bytes) return Buffer.alloc(0);
   return Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+}
+
+
+/**
+ * PostgreSQL TEXT cannot contain NUL (0x00). Binary formats such as PDFs may legitimately
+ * expose NUL/control bytes during best-effort extraction, so sanitize only the derived text.
+ * The immutable raw bytes and their SHA-256 are never modified.
+ */
+export function sanitizeTextForDatabase(value) {
+  if (value === null || value === undefined) return null;
+  return String(value)
+    .replace(/\u0000/g, '')
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, '');
 }
