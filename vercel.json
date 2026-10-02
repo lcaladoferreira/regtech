@@ -3,9 +3,19 @@
   "framework": null,
   "functions": {
     "api/index.js": {
-      "includeFiles": "migrations/**"
+      "includeFiles": {
+        "migrations/**": true
+      },
+      "memory": 1024,
+      "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/jobs/collect",
+      "schedule": "5 8 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",

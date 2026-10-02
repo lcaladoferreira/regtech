@@ -3,6 +3,7 @@ const NAV_GROUPS = [
     ['/dashboard', 'Overview', 'OV'],
     ['/obligations', 'Obligation registry', 'OB'],
     ['/regulators', 'Regulators', 'RG'],
+    ['/sources', 'Official sources', 'OS'],
     ['/changes', 'Change feed', 'CH'],
     ['/schemas', 'Schema registry', 'SC'],
     ['/norm-diff', 'Norm diff', 'ND'],
@@ -33,6 +34,7 @@ const NAV_GROUPS = [
 const PAGE_META = {
   '/dashboard': ['Overview', 'Cross-regulator inventory and operational signals'],
   '/obligations': ['Obligation registry', 'Search and compare sourced requirements across regulators'],
+  '/sources': ['Official sources', 'Monitored authorities, immutable snapshots, hashes and provenance'],
   '/impact': ['Impact explorer', 'Trace a regulatory obligation into schemas, data, controls and evidence'],
   '/regulators': ['Regulators', 'Shared inventory for the six configured Brazilian authorities'],
   '/changes': ['Regulatory change feed', 'Source-linked change records and deterministic technical impacts'],
@@ -57,6 +59,7 @@ const PAGE_META = {
 
 const state = {
   renderId: 0,
+  platform: null,
   mappingEditor: null,
   mappingQuery: '',
   mappingStatus: '',
@@ -82,8 +85,17 @@ function navigate(path, params = {}) {
   else location.hash = next;
 }
 
+function storedAdminKey() {
+  try { return (globalThis.localStorage && globalThis.localStorage.getItem('lcf_admin_key')) || ''; } catch { return ''; }
+}
+
 async function api(path, options = {}) {
   const request = { ...options, headers: { ...(options.headers || {}) } };
+  const method = String(request.method || 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'OPTIONS') {
+    const adminKey = storedAdminKey();
+    if (adminKey) request.headers['Authorization'] = `Bearer ${adminKey}`;
+  }
   if (request.body && typeof request.body !== 'string') {
     request.headers['Content-Type'] = 'application/json';
     request.body = JSON.stringify(request.body);
@@ -95,6 +107,7 @@ async function api(path, options = {}) {
     const error = new Error(payload?.message || `Request failed (${response.status}).`);
     error.status = response.status;
     error.code = payload?.error;
+    if (response.status === 401) error.message += ' (set the admin key in System → Jobs & runs)';
     throw error;
   }
   return payload;
@@ -129,6 +142,11 @@ function badge(value, override = '') {
     'raw-unchanged': 'verified', unassessed: 'unassessed', 'completed-with-failures': 'review', failed: 'fail',
     partial: 'review', 'reference-only': 'neutral', 'reference-implemented': 'pass', 'reference-structured': 'info',
     'excerpt-verified': 'verified', 'ready-for-review': 'info', deprecated: 'neutral',
+    'live': 'pass', 'monitored': 'info', 'source-verified': 'verified', 'unverified': 'neutral',
+    'needs-review': 'review', 'needs_review': 'review', 'ingestion-error': 'fail', 'source-changed': 'review',
+    'content-changed': 'info', 'regulatory-change-candidate': 'review', 'regulatory-change-confirmed': 'pass',
+    'first-capture': 'info', 'hash-only': 'neutral', 'monitor-error': 'fail', 'not-configured': 'fail',
+    'source_verified': 'verified', 'unstructured': 'unstructured', 'captured': 'pass',
   };
   const cls = override || classes[lookup] || 'neutral';
   return `<span class="badge ${esc(cls)}">${esc(label.replaceAll('_', ' '))}</span>`;
@@ -174,6 +192,40 @@ function valueBox(label, value) {
   return `<div class="value-box"><div class="value-label">${esc(label)}</div><div class="value-text">${esc(value || 'NOT AVAILABLE')}</div></div>`;
 }
 
+function platformPill(platform) {
+  if (!platform || platform.status === 'unreachable') return 'STATUS · UNREACHABLE';
+  if (platform.database === 'postgresql') return `PostgreSQL · ${platform.storage === 'unavailable' ? 'STORAGE ERROR' : 'LIVE'}`;
+  if (platform.database === 'not_configured') return 'PERSISTENCE · NOT CONFIGURED';
+  return 'SQLite · DEV MODE';
+}
+function platformLine(platform) {
+  if (!platform || platform.status === 'unreachable') return 'Platform status unavailable';
+  if (platform.database === 'postgresql') return `${platform.sources_monitored || 0} official sources · ${platform.snapshots || 0} snapshots`;
+  if (platform.database === 'not_configured') return 'Production persistence not configured';
+  return 'Local development workspace';
+}
+function platformVersion(platform) {
+  const mode = platform?.data_mode || 'UNKNOWN';
+  if (mode === 'LIVE') return `LIVE DATA · ${platform?.version || '0.2.0'}`;
+  if (mode === 'DEMO_FIXTURES') return `DEMO BUILD · ${platform?.version || '0.2.0'}`;
+  return `UNCONFIGURED · ${platform?.version || '0.2.0'}`;
+}
+function platformBanner(platform) {
+  const mode = platform?.data_mode || 'UNKNOWN';
+  if (mode === 'LIVE') {
+    const last = platform.last_ingestion;
+    const lastText = last ? `${last.status} at ${String(last.started_at || '').replace('T', ' ').slice(0, 16)} UTC · ${last.sources_checked || 0} checked · ${last.sources_changed || 0} changed` : 'no collection job has run yet';
+    return `<div class="demo-banner live"><span><strong>LIVE · OFFICIAL SOURCE</strong> · PostgreSQL persistence · ${esc(String(platform.sources_monitored ?? 0))} official sources monitored · ${esc(String(platform.snapshots ?? 0))} immutable snapshots · ${esc(lastText)}${platform.open_ingestion_errors ? ` · <strong>${esc(String(platform.open_ingestion_errors))} ingestion error(s)</strong>` : ''}</span><a href="#/sources">Open source registry</a></div>`;
+  }
+  if (mode === 'DEMO_FIXTURES') {
+    return `<div class="demo-banner"><span><strong>DEMO DATA</strong> · Synthetic internal fixtures and curated regulatory excerpts loaded in a development workspace. This is NOT official regulatory data and no LIVE screen here should be treated as production monitoring.</span><a href="#/regulatory">Source & provenance notes</a></div>`;
+  }
+  if (platform?.database === 'not_configured' || mode === 'UNCONFIGURED') {
+    return `<div class="demo-banner danger"><span><strong>PERSISTENCE NOT CONFIGURED</strong> · Production requires PostgreSQL (DATABASE_URL). The platform will not fall back to temporary SQLite and will not fabricate regulatory data; dashboards stay empty until a real database is connected.</span><a href="#/sources">Configuration & sources</a></div>`;
+  }
+  return `<div class="demo-banner"><span><strong>DATA MODE · ${esc(mode)}</strong> · ${esc(platform?.message || 'Workspace state has not been confirmed. Regulatory data is never invented: absent evidence stays UNKNOWN.')}</span><a href="#/sources">Open source registry</a></div>`;
+}
+
 function shellMarkup(route) {
   const meta = PAGE_META[route.path] || PAGE_META['/dashboard'];
   const nav = NAV_GROUPS.map((group) => `<section class="nav-group"><h2 class="nav-heading">${esc(group.title)}</h2>${group.items.map(([path, label, icon]) => {
@@ -185,24 +237,30 @@ function shellMarkup(route) {
     <aside class="sidebar" aria-label="Primary navigation">
       <div class="brand-block"><span class="brand-mark">LCF</span><div class="brand-copy"><div class="brand-name">Regulatory Data<br>Intelligence</div><div class="brand-subtitle">Compliance workspace</div></div></div>
       <nav class="nav-scroll">${nav}</nav>
-      <div class="sidebar-footer"><div class="sidebar-status"><span class="status-dot"></span>Local SQLite workspace</div><div class="sidebar-version">DEMO BUILD · 0.1.0</div></div>
+      <div class="sidebar-footer"><div class="sidebar-status"><span class="status-dot"></span>${esc(platformLine(state.platform))}</div><div class="sidebar-version">${esc(platformVersion(state.platform))}</div></div>
     </aside>
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-context"><strong>${esc(meta[0])}</strong><span>${esc(meta[1])}</span></div>
         <form class="global-search" id="global-search-form" role="search"><span class="search-glyph" aria-hidden="true">⌕</span><input id="global-search-input" name="q" type="search" placeholder="Search regulations, fields, sources…" aria-label="Global search"><kbd class="kbd">Ctrl K</kbd></form>
-        <div class="topbar-right"><span class="top-pill">SQLite · LOCAL DEMO</span></div>
+        <div class="topbar-right"><span class="top-pill">${esc(platformPill(state.platform))}</span></div>
       </header>
-      <div class="demo-banner"><span><strong>DEMO DATA</strong> · Synthetic internal fixtures and curated regulatory excerpts. No regulator submission or official validation is performed.</span><a href="#/regulatory">Source & provenance notes</a></div>
+      ${platformBanner(state.platform)}
       <div id="page-content"><div class="loading-line"></div><div class="page"><p class="page-subtitle">Loading workspace data…</p></div></div>
     </div>
     ${toast}
   </div>`;
 }
 
+async function loadPlatform() {
+  try { state.platform = await api('/api/health'); }
+  catch { state.platform = { status: 'unreachable', data_mode: 'UNREACHABLE' }; }
+}
+
 async function renderApp() {
   const current = routeState();
   const renderId = ++state.renderId;
+  if (!state.platform) await loadPlatform();
   document.title = `${PAGE_META[current.path]?.[0] || 'Workspace'} · LCF Regulatory Data Intelligence`;
   document.getElementById('app').innerHTML = shellMarkup(current);
   try {
@@ -221,6 +279,7 @@ async function renderRoute(route) {
   switch (route.path) {
     case '/dashboard': return renderDashboard();
     case '/obligations': return renderObligations(route.params);
+    case '/sources': return route.params.get('id') ? renderSourceDetail(route.params.get('id')) : renderSources(route.params);
     case '/impact': return route.params.get('id') ? renderObligationDetail(route.params.get('id')) : renderImpactIndex();
     case '/regulators': return route.params.get('regulator') ? renderRegulatorDetail(route.params.get('regulator')) : renderRegulators();
     case '/changes': return renderChanges(route.params);
@@ -248,19 +307,28 @@ async function renderRoute(route) {
 async function renderDashboard() {
   const data = await api('/api/dashboard');
   const { counts, data_trust: trust } = data;
+  const rawSnapshots = number(counts.raw_snapshots);
   const cards = `<div class="metric-grid">
-    ${metric('Active obligations', number(counts.obligation_count), 'Across configured regulators', 'OB')}
+    ${metric('Regulatory sources', number(counts.sources_monitored), `${number(counts.raw_verified_sources)} with verified raw capture`, 'OS')}
+    ${metric('Source snapshots', rawSnapshots, `${number(counts.snapshots_24h)} immutable captures in 24h`, 'SN', 'blue')}
+    ${metric('Changes pending review', number(counts.pending_review), `${number(counts.sources_changed_24h)} source change(s) in 24h`, 'RV', counts.pending_review ? 'amber' : '')}
     ${metric('Official deadlines ahead', number(counts.deadline_count), 'Published/source-backed records only', 'DL', 'amber')}
-    ${metric('Catalogued fields', number(counts.field_count), 'Curated structured inventory', 'SF', 'blue')}
-    ${metric('Mappings in use', number(counts.mapped_field_count), `${number(counts.unmapped_field_count)} active fields need mapping`, 'MP', 'red')}
   </div>`;
-  const changes = data.top_changes.map((change) => `<div class="change-card"><div class="change-top"><div><div class="change-title">${esc(change.summary)}</div><div class="cell-secondary">${esc(change.regulator?.acronym || 'Authority pending')} · ${esc(change.change_type)} · ${dateText(change.detected_at)}</div></div>${badge(change.severity, change.severity === 'UNASSESSED' ? 'unassessed' : '')}</div><div class="change-summary">${esc(change.field || 'Source-level change')} ${change.obligation ? `· ${obligationLink(change.obligation.id, change.obligation.code)}` : ''}</div></div>`).join('');
+  const changes = data.top_changes.map((change) => `<div class="change-card"><div class="change-top"><div><div class="change-title">${esc(change.summary)}</div><div class="cell-secondary">${esc(change.regulator?.acronym || 'Authority pending')} · ${esc(change.change_type)} · ${badge(change.change_level || 'LEGACY')} · ${dateText(change.detected_at)}</div></div>${badge(change.severity, change.severity === 'UNASSESSED' ? 'unassessed' : '')}${change.review_status === 'REVIEW_REQUIRED' ? badge('NEEDS REVIEW','review') : ''}</div><div class="change-summary">${esc(change.field || 'Source-level change')} ${change.obligation ? `· ${obligationLink(change.obligation.id, change.obligation.code)}` : ''}</div></div>`).join('');
   const deadlines = data.upcoming_deadlines.map((item) => `<div class="status-item"><div><div class="status-name">${obligationLink(item.obligation_id, `${item.regulator_acronym} · ${item.obligation_code}`)}</div><div class="status-detail">${esc(item.reference_period)} · ${esc(item.calculation_basis || '')}</div></div><div class="nowrap">${badge(item.deadline_type, 'official')}<div class="cell-secondary">${dateText(item.due_date)}</div></div></div>`).join('');
   const obligations = data.obligations_preview.map((item) => `<tr><td>${tag(item.regulator_acronym)}</td><td><div class="cell-primary">${obligationLink(item.id, item.title)}</div><span class="cell-secondary mono">${esc(item.code)}</span></td><td>${esc(item.frequency || 'UNKNOWN')}</td><td>${item.field_count ? number(item.mapped_field_count) + ' / ' + number(item.field_count) : '—'}</td><td>${badge(item.impact_level || 'LOW', 'neutral')}</td></tr>`);
-  const provenance = `<div class="alert warning"><strong>Source boundary.</strong> ${number(trust.official_source_excerpts)} stored curated excerpts · ${number(trust.raw_remote_snapshots)} raw remote snapshots. Curated-excerpt SHA-256 values are not hashes of original source bytes. The source collector has not populated a live snapshot in this workspace.</div>`;
+  const liveMode = data.data_mode === 'LIVE';
+  const provenance = liveMode
+    ? `<div class="alert"><strong>Live official monitoring.</strong> ${number(counts.sources_monitored)} sources monitored · ${rawSnapshots} immutable snapshots (${number(counts.snapshots_24h)} in 24h) · ${number(counts.raw_verified_sources)} sources with SHA-256 verified raw capture · ${number(counts.pending_review)} change(s) awaiting human review. ${trust.official_source_excerpts ? `Additionally ${number(trust.official_source_excerpts)} curated excerpts exist whose hashes cover curated text only, never original bytes.` : ''}</div>`
+    : `<div class="alert warning"><strong>Source boundary.</strong> ${number(trust.official_source_excerpts)} stored curated excerpts · ${rawSnapshots} raw remote snapshots. Curated-excerpt SHA-256 values are not hashes of original source bytes. Raw official captures from real collection appear here once the ingestion job runs.</div>`;
+  const ingestionPanel = (() => {
+    const last = data.ingestion?.last_collection;
+    const rows = data.source_health.length ? data.source_health.map((row) => `<div class="status-item"><div><div class="status-name">${esc(row.authority || 'UNASSIGNED')}</div><div class="status-detail">${number(row.sources)} source(s) · last check ${row.last_check ? dateText(row.last_check) : 'NEVER'}</div></div>${badge(row.failing ? `${row.failing} ERROR` : (row.healthy ? 'HEALTHY' : 'PENDING'), row.failing ? 'fail' : (row.healthy ? 'pass' : 'info'))}</div>`).join('') : emptyState('No sources yet', 'The source adapter registry populates monitored official sources on the first collection job.');
+    return `<div class="status-list"><div class="status-item"><div><div class="status-name">Last successful ingestion</div><div class="status-detail">collect_sources job</div></div>${data.ingestion?.last_successful ? badge(`OK · ${dateText(data.ingestion.last_successful.started_at)}`, 'pass') : badge('NEVER_RUN', 'review')}</div><div class="status-item"><div><div class="status-name">Last attempted ingestion</div><div class="status-detail">${last ? `${esc(last.status)} · ${number(last.sources_checked || 0)} checked · ${number(last.sources_changed || 0)} changed · ${number(last.sources_failed || 0)} failed` : 'no run recorded'}</div></div>${last ? badge(last.status) : badge('NOT_RUN', 'not-run')}</div>${rows}</div>`;
+  })();
   return `<main class="page">${pageHead('Regulatory data intelligence', 'A sourced, cross-regulator view from obligation to data, control and evidence.', `<a class="button primary" href="#/obligations">Browse obligation registry</a>`)}${cards}${provenance}
     <div class="dashboard-grid"><div>${panel('Recent sourced changes', changes || emptyState('No changes recorded', 'No source-backed changes have been added yet.'), { description: 'Technical impact is deterministic; it is not a legal severity rating.', action: '<a class="panel-link" href="#/changes">View change feed →</a>', flush: true })}${panel('Obligation inventory', table(['Authority','Obligation','Cadence','Mapped fields','Footprint'], obligations, 'No obligations match this view.'), { description: 'Footprint is an inventory heuristic, not legal materiality.', action: '<a class="panel-link" href="#/obligations">Open registry →</a>', flush: true })}</div>
-    <div>${panel('Upcoming official deadlines', deadlines || emptyState('No upcoming deadlines', 'Source-backed official due dates appear here; internal targets are shown separately in Calendar.'), { description: 'Regulatory due dates only. Internal targets are never merged into this list.', flush: true })}${panel('Coverage & trust', `<div class="status-list"><div class="status-item"><div><div class="status-name">Configured authorities</div><div class="status-detail">Multi-regulator registry</div></div><strong class="mono">${number(counts.regulator_count)} / 6</strong></div><div class="status-item"><div><div class="status-name">Structured field coverage</div><div class="status-detail">${number(counts.mapped_field_count)} of ${number(counts.field_count)} mapped fields</div></div><strong class="mono">${counts.field_count ? Math.round((counts.mapped_field_count/counts.field_count)*100) : 0}%</strong></div><div class="status-item"><div><div class="status-name">Raw regulatory snapshots</div><div class="status-detail">Original bytes stored immutably</div></div>${badge(number(counts.raw_snapshots), counts.raw_snapshots ? 'pass' : 'review')}</div><div class="status-item"><div><div class="status-name">Open ingestion errors</div><div class="status-detail">Visible and retryable where source-linked</div></div>${badge(number(counts.ingestion_error_count), counts.ingestion_error_count ? 'fail' : 'pass')}</div></div>`, { description: 'Metadata coverage; no client production estate is connected.' })}</div></div></main>`;
+    <div>${panel('Upcoming official deadlines', deadlines || emptyState('No upcoming deadlines', 'Source-backed official due dates appear here only when sustained by an official source; internal targets are shown separately in Calendar.'), { description: 'Regulatory due dates only. Internal targets are never merged into this list.', flush: true })}${panel('Ingestion & source health', ingestionPanel, { description: 'Real job observability: last run, counters and per-authority health.', action: '<a class="panel-link" href="#/system/jobs">Job runs →</a>', flush: true })}${panel('Coverage & trust', `<div class="status-list"><div class="status-item"><div><div class="status-name">Configured authorities</div><div class="status-detail">Multi-regulator registry</div></div><strong class="mono">${number(counts.regulator_count)} / 6</strong></div><div class="status-item"><div><div class="status-name">Structured field coverage</div><div class="status-detail">${number(counts.mapped_field_count)} of ${number(counts.field_count)} mapped fields</div></div><strong class="mono">${counts.field_count ? Math.round((counts.mapped_field_count/counts.field_count)*100) : 0}%</strong></div><div class="status-item"><div><div class="status-name">Raw regulatory snapshots</div><div class="status-detail">Original bytes stored immutably</div></div>${badge(number(counts.raw_snapshots), counts.raw_snapshots ? 'pass' : 'review')}</div><div class="status-item"><div><div class="status-name">Open ingestion errors</div><div class="status-detail">Visible and retryable where source-linked</div></div>${badge(number(counts.ingestion_error_count), counts.ingestion_error_count ? 'fail' : 'pass')}</div></div>`, { description: 'Metadata coverage; no client production estate is connected.' })}</div></div></main>`;
 }
 
 async function renderObligations(params = new URLSearchParams()) {
@@ -470,17 +538,68 @@ async function renderCases() {
   return `<main class="page">${pageHead('Reference cases', 'Small implementation slices show the intended generic product model without claiming a complete regulatory adapter.')}${panel('Case library', `<div class="three-grid">${cards}</div>`, { description: `${cases.length} source-linked cases across multiple regulators. Every incomplete schema or adapter is stated.` })}</main>`;
 }
 
+function adminKeyBox() {
+  const current = (() => { try { return globalThis.localStorage?.getItem('lcf_admin_key') || ''; } catch { return ''; } })();
+  return `<div class="panel"><div class="panel-body"><form data-form="admin-key"><div class="form-grid"><div class="field-control"><label>Admin API key (stored locally in this browser; required for all mutations and for manual collection)</label><input class="input" name="admin_key" type="password" placeholder="${current ? 'Admin key stored — update to replace' : 'ADMIN_API_KEY bearer value'}"></div></div><div class="form-actions"><button class="button" type="submit">Save admin key</button><span class="form-note">Sent as Authorization: Bearer … only from this browser to your deployment. Never stored in code.</span></div></form></div></div>`;
+}
+
+async function renderSources(params = new URLSearchParams()) {
+  const [sources, platform] = await Promise.all([api(`/api/sources?${params.toString()}`), Promise.resolve(state.platform || null)]);
+  const authorities = [...new Set(sources.map((s) => s.authority || s.regulator_acronym).filter(Boolean))];
+  const options = authorities.map((a) => `<option ${params.get('authority') === a ? 'selected' : ''}>${esc(a)}</option>`).join('');
+  const rows = sources.map((s) => `<tr>
+    <td>${tag(s.regulator_acronym)}<span class="cell-secondary">${esc(s.authority || s.source_authority)}</span></td>
+    <td><div class="cell-primary"><a href="#/sources?id=${encodeURIComponent(s.id)}">${esc(s.source_title)}</a></div><span class="cell-secondary mono">${esc(s.source_url)}</span></td>
+    <td>${esc(s.source_type)}${s.adapter ? `<span class="cell-secondary">adapter · ${esc(s.adapter)}</span>` : ''}</td>
+    <td>${badge(s.health || s.status)}${s.last_http_status ? `<span class="cell-secondary">HTTP ${esc(String(s.last_http_status))}</span>` : `<span class="cell-secondary">HTTP NOT VERIFIED</span>`}</td>
+    <td>${s.content_hash ? `<span class="mono" title="${esc(s.content_hash_scope || '')}">${esc(String(s.content_hash).slice(0, 12))}…</span><span class="cell-secondary">${esc(s.content_hash_scope === 'RAW_RESPONSE_SHA256' ? 'RAW RESPONSE SHA-256' : s.content_hash_scope || 'NO HASH')}</span>` : '<span class="cell-secondary">NO CAPTURE YET</span>'}</td>
+    <td>${number(s.raw_snapshot_count)}<span class="cell-secondary">${s.last_raw_snapshot_at ? `newest ${dateText(s.last_raw_snapshot_at)}` : 'no raw capture'}</span></td>
+    <td>${s.last_checked_at ? `${dateText(s.last_checked_at)}<span class="cell-secondary">poll ${number(s.polling_frequency_minutes || 1440)} min</span>` : 'NEVER CHECKED'}</td>
+    <td>${s.consecutive_failures > 0 ? `<span class="cell-secondary" title="${esc(s.last_error || '')}">${badge('INGESTION ERROR', 'fail')}</span>` : s.verification_status === 'SOURCE_VERIFIED' ? badge('VERIFIED', 'pass') : badge(s.verification_status || 'UNVERIFIED')}</td>
+  </tr>`);
+  const monitoring = platform?.database === 'postgresql'
+    ? `<div class="alert"><strong>LIVE monitoring.</strong> Vercel Cron executes POST /api/jobs/collect with the CRON_SECRET bearer token. Snapshots are immutable; hashes are SHA-256 of real captured bytes.</div>`
+    : `<div class="alert warning"><strong>Development workspace.</strong> ${platform?.database === 'not_configured' ? 'Persistence is not configured, so no collection is possible yet. ' : ''}In production a PostgreSQL DATABASE_URL and durable storage are prerequisites; the platform never shows seeded demo rows as official data.</div>`;
+  return `<main class="page">${pageHead('Official sources', 'One row per monitored official source. Provenance fields come only from actual fetches; missing evidence stays UNKNOWN.', `<button class="button primary" data-action="collect-now">Collect due sources now</button>`)}${monitoring}${panel('Source registry', `<form class="toolbar" data-form="source-filter"><select name="authority"><option value="">All authorities</option>${options}</select><button class="button primary" type="submit">Filter</button><a class="button" href="#/sources">Reset</a></form>${table(['Authority','Official source (live URL)','Type / adapter','Last result','Content SHA-256','Snapshots','Last check','Verification'], rows, 'No sources registered yet. The official adapter registry syncs automatically on the first collection run.')}`, { description: `${sources.length} registered source(s).`, flush: true })}</main>`;
+}
+
+async function renderSourceDetail(id) {
+  const detail = await api(`/api/sources/${encodeURIComponent(id)}`);
+  const s = detail.source;
+  const snapRows = detail.snapshots.map((snap, index) => `<tr>
+    <td class="mono">${esc(String(snap.id).slice(0, 8))}${snap.previous_snapshot_id ? `<span class="cell-secondary">prev ${esc(String(snap.previous_snapshot_id).slice(0, 8))}</span>` : `<span class="cell-secondary">first capture</span>`}</td>
+    <td>${dateText(snap.collected_at)}<span class="cell-secondary">HTTP ${esc(String(snap.http_status ?? '—'))}</span></td>
+    <td><span class="mono" title="${esc(snap.content_hash)}">${esc(String(snap.content_hash).slice(0, 16))}…</span></td>
+    <td>${snap.content_size != null ? `${number(snap.content_size)} B` : '—'}<span class="cell-secondary">${esc(snap.mime_type || 'unknown type')}</span></td>
+    <td>${badge(snap.parse_status || snap.status)}${snap.parse_error ? `<span class="cell-secondary">${esc(String(snap.parse_error).slice(0, 80))}</span>` : ''}</td>
+    <td>${snap.diff_type ? tag(snap.diff_type) : '—'}<span class="cell-secondary">${esc(String(snap.diff_summary || '').slice(0, 160))}</span></td>
+    <td>${snap.storage_provider ? `<span class="cell-secondary">${esc(snap.storage_provider)}</span><br>` : ''}<a class="button compact" href="/api/sources/${encodeURIComponent(s.id)}/snapshots/${encodeURIComponent(snap.id)}/content">Fetch raw</a></td>
+  </tr>`).join('');
+  const checkRows = detail.checks.map((c) => `<tr><td>${dateText(c.checked_at)}</td><td>HTTP ${esc(String(c.http_status ?? '—'))}</td><td>${tag(c.outcome)}</td><td>${c.content_hash ? `<span class="mono">${esc(String(c.content_hash).slice(0, 12))}…</span>` : '—'}</td><td>${esc(c.detail || '')}</td></tr>`).join('');
+  const changeRows = detail.changes.map((c) => `<div class="change-card"><div class="change-top"><div><div class="change-title">${esc(c.summary)}</div><div class="cell-secondary">${badge(c.change_level || 'LEGACY')} · ${esc(c.change_type)} · confidence ${esc(c.confidence || 'UNKNOWN')} · ${dateText(c.detected_at)}</div></div>${badge(c.review_status || 'REVIEW_REQUIRED', 'review')}</div>${c.diff_summary ? `<div class="change-summary">${esc(String(c.diff_summary).slice(0, 400))}</div>` : ''}${c.old_value || c.new_value ? valueBox('Hash before → after', `${String(c.old_version || '—').slice(0, 16)}… → ${String(c.new_version || '—').slice(0, 16)}…`) : ''}</div>`).join('');
+  const kv = (label, value) => `<div class="kv"><div class="kv-label">${esc(label)}</div><div class="kv-value">${value ?? esc(value ?? 'NOT AVAILABLE')}</div></div>`;
+  return `<main class="page">${pageHead(s.source_title, `${s.authority || s.source_authority} · official source provenance`, `<a class="button" href="${esc(safeHref(s.source_url))}" target="_blank" rel="noopener noreferrer">Open official source ↗</a><a class="button soft" href="#/sources">Back to registry</a>`)}
+    <div class="kv-grid">${kv('Authority', esc(s.source_authority))}${kv('Source type', esc(s.source_type))}${kv('Adapter', s.adapter ? esc(s.adapter) : 'NOT ASSIGNED')}${kv('Polling', s.polling_frequency_minutes ? `${number(s.polling_frequency_minutes)} min` : 'UNKNOWN')}${kv('Last check', s.last_checked_at ? esc(String(s.last_checked_at).replace('T', ' ').slice(0, 19)) + ' UTC' : 'NEVER')}${kv('HTTP result', s.last_http_status != null ? esc(String(s.last_http_status)) : 'NOT VERIFIED')}${kv('Current content hash', s.content_hash ? `<span class="mono">${esc(s.content_hash)}</span>` : 'NOT AVAILABLE')}${kv('Hash scope', esc(detail.hash_notice))}${kv('Verification status', badge(s.status === 'FETCH_ERROR' ? 'INGESTION ERROR' : s.content_hash_scope === 'RAW_RESPONSE_SHA256' ? 'SOURCE_VERIFIED' : 'UNVERIFIED'))}${kv('ETag / Last-Modified', esc(`${s.etag || 'no etag'} · ${s.last_modified || 'no last-modified'}`))}${kv('Storage', esc(detail.storage_provider || s.current_snapshot_id ? (s.current_snapshot_id ? 'durable provider active' : 'none') : 'none'))}${kv('Consecutive failures', number(s.consecutive_failures || 0) + (s.last_error ? ` · ${esc(String(s.last_error).slice(0, 120))}` : ''))}</div>
+    ${s.excerpt ? `<div class="alert"><strong>Curated excerpt (not a raw capture).</strong> ${esc(String(s.excerpt).slice(0, 600))}</div>` : ''}
+    ${detail.adapter?.notes ? `<div class="alert warning"><strong>Adapter discovery strategy:</strong> ${esc(detail.adapter.discoveryStrategy)} — ${esc(detail.adapter.notes)}</div>` : ''}
+    ${panel('Immutable snapshot history', snapRows ? table(['Snapshot','Collected (UTC)','SHA-256 (raw bytes)','Size / MIME','Parse','Diff vs previous','Storage / raw download'], detail.snapshots, 'No snapshots.') : emptyState('No raw snapshot captured yet', 'Run collection (or wait for the cron job). Until real bytes are captured this source has no hash claim — the platform will not fake one.'), { description: `${detail.snapshots.length} capture(s). Rows are append-only; raw bytes and hashes cannot be overwritten or deleted.`, flush: true })}
+    ${panel('Change detection records', changeRows || emptyState('No change records', 'A snapshot-hash change creates a reviewable SOURCE_CHANGED record; regulatory meaning requires human confirmation.'), { flush: true })}
+    ${panel('Verification checks (includes HTTP 304 without new bytes)', checkRows ? `<div class="table-wrap"><table><thead><tr><th>Checked</th><th>Status</th><th>Outcome</th><th>Hash</th><th>Detail</th></tr></thead><tbody>${checkRows}</tbody></table></div>` : emptyState('No checks recorded', 'Each run records its outcome here, including 304 Not-Modified validations.'), { flush: true })}
+    <div class="alert"><strong>Provenance:</strong> every fact on this page is derived from an actual HTTP response captured by the platform or from the official URL shown above. ${esc(detail.hash_notice)}</div>
+  </main>`;
+}
+
 async function renderJobs() {
   const data = await api('/api/jobs');
   const buttons = data.available.map((job)=>`<article class="case-card"><div class="case-code">${esc(job.name)}</div><div class="case-description">${esc(job.description)}</div><div class="case-note">Last run: ${job.last_run ? `${dateText(job.last_run.started_at)} · ${badge(job.last_run.status)}` : 'NOT RUN'}</div><div class="form-actions"><button class="button compact ${job.name==='run_quality'?'soft':''}" data-action="run-job" data-job="${esc(job.name)}">Run ${esc(job.name)}</button></div></article>`).join('');
-  const runs = data.runs.map((r)=>`<tr><td class="mono">${esc(r.job_name)}</td><td>${dateText(r.started_at)}<span class="cell-secondary">${r.finished_at ? `finished ${dateText(r.finished_at)}` : 'still running'}</span></td><td>${badge(r.status,r.status==='SUCCEEDED'?'pass':r.status==='FAILED'?'fail':'review')}</td><td>${number(r.records_processed)}</td><td>${number(r.records_created)}</td><td>${r.errors ? esc(typeof r.errors==='string'?r.errors.slice(0,160):JSON.stringify(r.errors).slice(0,160)) : '—'}</td></tr>`);
-  return `<main class="page">${pageHead('Jobs & runs', 'Run bounded source/processing tasks and inspect immutable run outcomes.', `<a class="button" href="#/system/errors">Ingestion errors</a>`)}<div class="alert warning"><strong>External network access is environment-dependent.</strong> Source collection is limited to HTTPS official-host allowlists, validates redirect targets, stores raw bytes and hashes them on success. PDF parsing may remain UNSTRUCTURED.</div>${panel('Available operations', `<div class="three-grid">${buttons}</div>`, { description: 'Extraction produces low-confidence review candidates only; it never auto-publishes obligations or schemas.' })}${panel('Execution history', table(['Job','Started','Status','Records','Created','Errors'],runs,'No job runs recorded.'), { flush: true })}</main>`;
+  const runs = data.runs.map((r)=>`<tr><td class="mono">${esc(r.job_name)}${r.manual_trigger && r.manual_trigger!=='manual'?`<span class="cell-secondary">${esc(r.manual_trigger)}</span>`:''}</td><td>${dateText(r.started_at)}<span class="cell-secondary">${r.finished_at ? `finished ${dateText(r.finished_at)}${r.duration_ms!=null?` · ${number(r.duration_ms)} ms`:''}` : 'still running'}</span></td><td>${badge(r.status,r.status==='SUCCEEDED'?'pass':r.status==='FAILED'?'fail':'review')}</td><td>${number(r.sources_checked ?? r.records_processed)}</td><td>${number(r.sources_changed ?? r.records_created)}<span class="cell-secondary">${number(r.sources_unchanged ?? 0)} unchanged</span></td><td>${number(r.snapshot_count ?? 0)}</td><td>${r.errors ? esc(typeof r.errors==='string'?r.errors.slice(0,160):JSON.stringify(r.errors).slice(0,160)) : '—'}</td></tr>`);
+  return `<main class="page">${pageHead('Jobs & runs', 'Run bounded source/processing tasks and inspect immutable run outcomes.', `<button class="button primary" data-action="collect-now">Run official collection now</button><a class="button" href="#/system/errors">Ingestion errors</a>`)}<div class="alert warning"><strong>External network access is environment-dependent.</strong> Collection is limited to HTTPS official-host allowlist domains, validates every redirect, stores raw bytes in durable storage, hashes them (SHA-256), uses ETag/If-Modified-Since conditional GETs, retries 3× with backoff, and records every failure. PDFs without a text layer remain UNSTRUCTURED.</div>${adminKeyBox()}${panel('Available operations', `<div class="three-grid">${buttons}</div>`, { description: 'Extraction produces low-confidence review candidates only; it never auto-publishes obligations or schemas.' })}${panel('Execution history', table(['Job','Started','Status','Checked','Changed','Snapshots','Errors'],runs,'No job runs recorded.'), { flush: true })}</main>`;
 }
 
 async function renderErrors() {
   const errors = await api('/api/errors');
-  const rows = errors.map((e)=>`<tr><td>${dateText(e.timestamp)}</td><td>${esc(e.source_title || e.source)}</td><td>${tag(e.error_type)}</td><td>${esc(e.message)}</td><td>${e.resolved?badge('RESOLVED','pass'):badge('OPEN','fail')}</td><td>${number(e.retry_count)}</td><td>${e.resolved?'—':e.source_id?`<button class="button compact" data-action="retry-error" data-error-id="${esc(e.id)}">Retry source</button>`:'Not retryable'}</td></tr>`);
-  return `<main class="page">${pageHead('Ingestion errors', 'Failures do not erase prior snapshots. Retry is available only when a source record is linked.', `<a class="button" href="#/system/jobs">Jobs & runs</a>`)}${panel('Persisted ingestion errors', table(['Timestamp','Source','Error type','Message','Status','Retries','Action'], rows,'No ingestion errors have been recorded.'), { flush: true })}</main>`;
+  const rows = errors.map((e)=>`<tr><td>${dateText(e.timestamp)}</td><td>${esc(e.source_title || e.source)}</td><td>${tag(e.error_type)}</td><td>${esc(e.message)}</td><td>${e.resolved?badge('RESOLVED','pass'):badge('OPEN','fail')}${e.http_status?`<span class="cell-secondary">HTTP ${esc(String(e.http_status))}</span>`:''}</td><td>${number(e.attempt_count ?? e.retry_count)}</td><td>${e.resolved?'—':e.source_id?`<button class="button compact" data-action="retry-error" data-error-id="${esc(e.id)}">Retry source</button>`:'Not retryable'}</td></tr>`);
+  return `<main class="page">${pageHead('Ingestion errors', 'Failures do not erase prior snapshots. Retry is available only when a source record is linked.', `<a class="button" href="#/system/jobs">Jobs & runs</a>`)}${panel('Persisted ingestion errors', table(['Timestamp','Source','Error type','Message','Status','Attempts','Action'], rows,'No ingestion errors have been recorded — failures are never hidden.'), { flush: true })}</main>`;
 }
 
 async function renderSearch(params = new URLSearchParams()) {
@@ -526,7 +645,7 @@ async function handleClick(event) {
       action.disabled = true;
       const job=action.dataset.job;
       const result=job==='collect_sources'
-        ? await api('/api/jobs/collect_sources',{method:'POST',body:{limit:4}})
+        ? await api('/api/jobs/collect',{method:'POST',body:{limit:25,dueOnly:false}})
         : job==='run_quality'
           ? await api('/api/dq/run',{method:'POST',body:{}})
           : job==='generate_submissions'
@@ -534,6 +653,12 @@ async function handleClick(event) {
             : await api(`/api/jobs/${encodeURIComponent(job)}/run`,{method:'POST',body:{}});
       const status=result.status || result.validation?.status || 'completed';
       notify(`${job}: ${String(status).toLowerCase()} · ${result.processed ?? result.records_processed ?? 0} record(s) processed.`,status==='FAILED'?'error':'success');
+      await renderApp(); return;
+    }
+    if (name === 'collect-now') {
+      action.disabled = true;
+      const result = await api('/api/jobs/collect', { method: 'POST', body: { limit: 25, dueOnly: false } });
+      notify(`Collection finished: ${result.status} · ${result.processed ?? 0} checked · ${result.changed ?? 0} changed · ${result.failed ?? 0} failed.`, result.failed ? 'error' : 'success');
       await renderApp(); return;
     }
     if (name === 'retry-error') {
@@ -562,6 +687,16 @@ async function handleSubmit(event) {
       return;
     }
     if (type === 'obligation-filter') { navigate('/obligations',values); return; }
+    if (type === 'admin-key') {
+      const key = String(values.admin_key || '').trim();
+      try {
+        if (key) globalThis.localStorage.setItem('lcf_admin_key', key);
+        else globalThis.localStorage.removeItem('lcf_admin_key');
+      } catch { /* storage unavailable */ }
+      notify(key ? 'Admin key stored in this browser.' : 'Admin key cleared.', 'success');
+      await renderApp(); return;
+    }
+    if (type === 'source-filter') { navigate('/sources', values); return; }
     if (type === 'change-filter') { navigate('/changes',values); return; }
     if (type === 'schema-search') { navigate('/schemas',values); return; }
     if (type === 'catalog-search') { navigate('/catalog',values); return; }

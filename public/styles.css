@@ -315,3 +315,11 @@ textarea { min-height: 114px; resize: vertical; font-family: inherit; line-heigh
   .table-wrap table { min-width: 700px; }
   .source-card { grid-template-columns: 1fr; }
 }
+
+/* Live platform banners (real-data mode) */
+.demo-banner.live { color: #144d3a; background: #eefaf4; border-bottom-color: #cde9dc; }
+.demo-banner.live strong { color: #0d6a46; }
+.demo-banner.live a { color: #0d6a46; }
+.demo-banner.danger { color: #6b1f22; background: #fdefef; border-bottom-color: #f2d0d1; }
+.demo-banner.danger strong { color: #a02226; }
+.demo-banner.danger a { color: #a02226; }

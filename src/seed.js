@@ -1,12 +1,29 @@
+/**
+ * DEVELOPMENT / TEST FIXTURES ONLY.
+ *
+ * This module seeds explicitly synthetic demo content (internal systems, mappings, fixtures)
+ * and curated regulatory excerpts with their provenance notes. It is NEVER executed in
+ * production: production databases start empty and are populated exclusively by real
+ * official-source ingestion (src/engines/ingestion.js) and operator-confirmed records.
+ * `seedAllowed()` is the single gate; `openDatabase()` enforces it.
+ */
 import { createHash, randomUUID } from 'node:crypto';
 import { calculateImpacts, scoreObligationFootprint } from './engines/impact-engine.js';
 
+export const DEMO_FIXTURES = 'DEMO_FIXTURES';
+
+export function seedAllowed(env = process.env) {
+  const production = env.NODE_ENV === 'production' || env.VERCEL === '1';
+  if (production) return false;
+  return env.LCF_ALLOW_SEED !== 'false';
+}
+
 const isoNow = () => new Date().toISOString();
-const stableInsert = (db, table, row) => {
+const stableInsert = async (db, table, row) => {
   const columns = Object.keys(row);
   const placeholders = columns.map(() => '?').join(', ');
   const values = columns.map((key) => row[key] === undefined ? null : row[key]);
-  db.prepare(`INSERT OR IGNORE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`).run(...values);
+  await db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`).run(...values);
 };
 
 const sources = [
@@ -378,11 +395,11 @@ function seedSchemas() {
   }
 }
 
-export function seedDatabase(db) {
-  const alreadySeeded = db.prepare("SELECT value FROM system_settings WHERE key = 'seed_version'").get();
+export async function seedDatabase(db) {
+  if (!seedAllowed()) return { seeded: false, reason: 'SEED_BLOCKED_IN_PRODUCTION', notice: 'Synthetic development fixtures are never seeded into production; production data comes only from official-source ingestion.' };
+  const alreadySeeded = await db.prepare("SELECT value FROM system_settings WHERE key = 'seed_version'").get();
   if (alreadySeeded) return { seeded: false, reason: 'seed_version exists' };
 
-  db.exec('BEGIN IMMEDIATE');
   try {
     const regulatorsSeed = [
       ['bcb','Banco Central do Brasil','BCB','Brazil','Financial Services','https://www.bcb.gov.br'],
@@ -392,7 +409,7 @@ export function seedDatabase(db) {
       ['coaf','Conselho de Controle de Atividades Financeiras','COAF','Brazil','AML / Financial Intelligence','https://www.gov.br/coaf'],
       ['rfb','Receita Federal do Brasil','RFB','Brazil','Tax / Digital Assets','https://www.gov.br/receitafederal'],
     ];
-    for (const [id,name,acronym,jurisdiction,sector,website] of regulatorsSeed) stableInsert(db, 'regulators', { id,name,acronym,jurisdiction,sector,website,active:1 });
+    for (const [id,name,acronym,jurisdiction,sector,website] of regulatorsSeed) await stableInsert(db, 'regulators', { id,name,acronym,jurisdiction,sector,website,active:1 });
 
     const regulationsSeed = [
       ['reg-cmn-5037','bcb','RESOLUTION','CMN 5.037/2022','Resolução CMN nº 5.037, de 29 de setembro de 2022','O manual oficial do Documento 3040 referencia o art. 3º desta Resolução para a definição das operações de crédito.','2022-09-29',null,'ACTIVE','https://www.bcb.gov.br/estabilidadefinanceira/scrdoc3040','src-bcb-3040-manual'],
@@ -407,7 +424,7 @@ export function seedDatabase(db) {
     ];
     for (const [id,regulator_id,type,number,title,description,publication_date,effective_date,status,source_url,sourceId] of regulationsSeed) {
       const source = sources.find((row) => row.id === sourceId);
-      stableInsert(db, 'regulations', {
+      await stableInsert(db, 'regulations', {
         id, regulator_id,type,number,title,description,publication_date,effective_date,status,source_url,
         content_hash: source?.excerpt ? hash(source.excerpt) : null,
         content_hash_scope: source?.excerpt ? 'CURATED_EXCERPT_SHA256' : null,
@@ -418,7 +435,7 @@ export function seedDatabase(db) {
     const collectedAt = isoNow();
     for (const source of sources) {
       const excerptHash = source.excerpt ? hash(source.excerpt) : null;
-      stableInsert(db, 'regulatory_sources', {
+      await stableInsert(db, 'regulatory_sources', {
         id: source.id, regulator_id: source.regulator_id, regulation_id: source.regulation_id,
         source_url: source.source_url, source_title: source.source_title, source_authority: source.source_authority,
         source_type: source.source_type, content_hash: excerptHash,
@@ -438,11 +455,11 @@ export function seedDatabase(db) {
       ['src-coaf-faq','OBLIGATION','obl-coaf-records','INTERPRETATION'], ['src-coaf-faq','OBLIGATION','obl-coaf-comms','SYSTEM_AND_SCOPE'],
       ['src-rfb-decripto','OBLIGATION','obl-rfb-decripto','LAYOUT'],
     ];
-    for (const [source_id,entity_type,entity_id,relation] of sourceLinks) stableInsert(db,'regulatory_source_links',{source_id,entity_type,entity_id,relation});
+    for (const [source_id,entity_type,entity_id,relation] of sourceLinks) await stableInsert(db,'regulatory_source_links',{source_id,entity_type,entity_id,relation});
 
     for (const row of obligations) {
       const score = scoreObligationFootprint(row, { fields: row.id === 'obl-bcb-4111' ? 6 : row.id === 'obl-bcb-scr-3040' ? 14 : row.id === 'obl-susep-rcomp' ? 18 : row.id === 'obl-rfb-decripto' ? 24 : 0, mapped: row.id === 'obl-bcb-4111' ? 3 : row.id === 'obl-susep-rcomp' ? 3 : 0 });
-      stableInsert(db, 'regulatory_obligations', {
+      await stableInsert(db, 'regulatory_obligations', {
         ...row, impact_score: score.score, impact_level: score.level, impact_rationale: `Footprint heuristic (not legal severity): ${score.rationale}`,
         is_demo: 0, updated_at: collectedAt,
       });
@@ -466,11 +483,11 @@ export function seedDatabase(db) {
     ];
     for (const [id,obligation_id,requirement_type,description,source_id,effective_from] of requirementsSeed) {
       const source = sources.find((item) => item.id === source_id);
-      stableInsert(db,'requirements',{id,obligation_id,requirement_type,description,source_reference:source?.source_url || 'UNKNOWN',source_id,effective_from,effective_to:null,status:'ACTIVE',is_demo:0});
+      await stableInsert(db,'requirements',{id,obligation_id,requirement_type,description,source_reference:source?.source_url || 'UNKNOWN',source_id,effective_from,effective_to:null,status:'ACTIVE',is_demo:0});
     }
-    for (const document of documents) stableInsert(db,'regulatory_documents',document);
+    for (const document of documents) await stableInsert(db,'regulatory_documents',document);
 
-    for (const element of canonicalElements) stableInsert(db,'canonical_data_elements',{...element,is_demo:0});
+    for (const element of canonicalElements) await stableInsert(db,'canonical_data_elements',{...element,is_demo:0});
     const schemaRows = [
       { id:'schema-bcb-4111-v2026', document_id:'doc-bcb-4111', version:'Manual rev. 2026-05-07', effective_from:'2025-01-02', schema_type:'XML', schema_url:sources.find((s)=>s.id==='src-bcb-4111-manual').source_url, content_hash:hash(sources.find((s)=>s.id==='src-bcb-4111-manual').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:6, field_inventory_scope:'FULL_MANUAL_FIELD_LIST (6 fields)', parse_status:'CURATED_EXTRACT', adapter_config_json:JSON.stringify({ kind:'XML', rootName:'documento', rootAttributes:{ codigoDocumento:{constant:'4111'}, cnpj:{path:'cnpj'}, dataBase:{path:'dataBase'}, tipoRemessa:{path:'tipoRemessa'} }, children:[{name:'contas',itemsPath:'accounts',itemName:'conta',itemAttributes:{codigoConta:{path:'codigoConta'},saldoDia:{path:'saldoDia'}}}], projection:[{regulatoryFieldId:'fld-4111-cnpj',target:'cnpj'},{regulatoryFieldId:'fld-4111-date',target:'dataBase'},{regulatoryFieldId:'fld-4111-type',target:'tipoRemessa',constant:'I'},{regulatoryFieldId:'fld-4111-account',target:'accounts.0.codigoConta'},{regulatoryFieldId:'fld-4111-balance',target:'accounts.0.saldoDia'}], requiredPaths:['cnpj','dataBase','tipoRemessa','accounts'], constraints:[{path:'cnpj',type:'string',length:8,required:true,regex:'^[A-Z0-9]{8}$'},{path:'dataBase',type:'string',length:10,required:true,regex:'^\\d{4}-\\d{2}-\\d{2}$'},{path:'tipoRemessa',type:'string',length:1,required:true,allowed:['I','S']},{path:'accounts.0.codigoConta',type:'string',length:10,required:true,regex:'^\\d{10}$'},{path:'accounts.0.saldoDia',type:'number',required:true}]}) },
       { id:'schema-bcb-3040-current', document_id:'doc-bcb-3040', version:'Unversioned source layout (current official page)', effective_from:null, schema_type:'XML/XLS_LAYOUT', schema_url:sources.find((s)=>s.id==='src-bcb-3040-layout').source_url, content_hash:hash(sources.find((s)=>s.id==='src-bcb-3040-layout').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:14, field_inventory_scope:'PARTIAL — 14 selected header/client/operation fields only', parse_status:'CURATED_EXTRACT', adapter_config_json:null },
@@ -478,17 +495,17 @@ export function seedDatabase(db) {
       { id:'schema-susep-openinsurance-67', document_id:'doc-susep-openinsurance', version:'6.7 (19/08/2024)', effective_from:null, schema_type:'MANUAL_SCOPE', schema_url:sources.find((s)=>s.id==='src-susep-openinsurance').source_url, content_hash:hash(sources.find((s)=>s.id==='src-susep-openinsurance').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:null, field_inventory_scope:'UNSTRUCTURED — manual de escopo; contrato JSON/OpenAPI e inventário de campos não capturados', parse_status:'UNSTRUCTURED', adapter_config_json:null },
       { id:'schema-rfb-decripto-101', document_id:'doc-rfb-decripto', version:'1.01 (Ago/2026)', effective_from:'2026-07-01', schema_type:'PIPE_DELIMITED_LAYOUT', schema_url:sources.find((s)=>s.id==='src-rfb-decripto').source_url, content_hash:hash(sources.find((s)=>s.id==='src-rfb-decripto').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:24, field_inventory_scope:'PARTIAL — registros 0000 e 0110 (24 campos; documento oficial completo possui outros registros)', parse_status:'CURATED_EXTRACT', adapter_config_json:null },
     ];
-    for (const schema of schemaRows) stableInsert(db,'schema_versions',{...schema,status:'CURRENT'});
+    for (const schema of schemaRows) await stableInsert(db,'schema_versions',{...schema,status:'CURRENT'});
     seedSchemas();
-    for (const f of regulatoryFieldSeed) stableInsert(db,'regulatory_fields',f);
+    for (const f of regulatoryFieldSeed) await stableInsert(db,'regulatory_fields',f);
 
-    for (const [id,name,type,description,owner,criticality] of systems) stableInsert(db,'internal_systems',{id,name,type,description,owner,criticality,is_demo:1});
-    for (const [id,system_id,name,database_name,schema_name,description,owner] of datasets) stableInsert(db,'datasets',{id,system_id,name,database_name,schema_name,description,owner,is_demo:1});
-    for (const [id,dataset_id,name,data_type,description,classification,canonical_element_id] of dataFields) stableInsert(db,'data_fields',{id,dataset_id,name,data_type,description,classification,canonical_element_id,is_demo:1});
+    for (const [id,name,type,description,owner,criticality] of systems) await stableInsert(db,'internal_systems',{id,name,type,description,owner,criticality,is_demo:1});
+    for (const [id,system_id,name,database_name,schema_name,description,owner] of datasets) await stableInsert(db,'datasets',{id,system_id,name,database_name,schema_name,description,owner,is_demo:1});
+    for (const [id,dataset_id,name,data_type,description,classification,canonical_element_id] of dataFields) await stableInsert(db,'data_fields',{id,dataset_id,name,data_type,description,classification,canonical_element_id,is_demo:1});
     for (const row of dataFields) {
       const [data_field_id,,,,,,canonical_element_id] = row;
       if (!canonical_element_id) continue;
-      stableInsert(db,'canonical_mappings',{id:`canonical-map-${data_field_id}`,canonical_element_id,data_field_id,transformation:'IDENTITY',mapping_status:'VALIDATED',owner:'Demo Data Governance',version:1,is_demo:1,updated_at:collectedAt});
+      await stableInsert(db,'canonical_mappings',{id:`canonical-map-${data_field_id}`,canonical_element_id,data_field_id,transformation:'IDENTITY',mapping_status:'VALIDATED',owner:'Demo Data Governance',version:1,is_demo:1,updated_at:collectedAt});
     }
 
     const demoRows = [
@@ -500,7 +517,7 @@ export function seedDatabase(db) {
       ['demo-crypto','ds-investment-crypto','synthetic-crypto-operation',{operation_date:'2026-07-03',operation_amount_brl:100315.45,crypto_symbol:'BTC'},'illustrative_only'],
       ['demo-incident','ds-fraud-incidents','synthetic-incident',{incident_date:'2026-10-01T15:10:00Z',data_category:'CUSTOMER_IDENTIFIER'},'illustrative_only'],
     ];
-    for (const [id,dataset_id,row_key,data,scenario] of demoRows) stableInsert(db,'demo_data',{id,dataset_id,row_key,data_json:JSON.stringify(data),scenario,is_demo:1});
+    for (const [id,dataset_id,row_key,data,scenario] of demoRows) await stableInsert(db,'demo_data',{id,dataset_id,row_key,data_json:JSON.stringify(data),scenario,is_demo:1});
 
     const mappingSeed = [
       ['map-4111-cnpj','fld-4111-cnpj','df-accounting-cnpj','canon-org-tax-id','IDENTITY','MAPPED','Finance Data','',1],
@@ -518,19 +535,19 @@ export function seedDatabase(db) {
       ['map-decripto-symbol','fld-decripto-0110-crypto-symbol','df-crypto-symbol','canon-crypto-symbol','UPPERCASE','MAPPED','Investment Data','',1],
     ];
     for (const [id,regulatory_field_id,data_field_id,canonical_element_id,transformation,mapping_status,owner,business_rule,is_demo] of mappingSeed) {
-      stableInsert(db,'data_mappings',{id,regulatory_field_id,data_field_id,canonical_element_id,transformation,sql_expression:null,python_expression:null,business_rule, mapping_status,owner,approved_by:mapping_status==='VALIDATED'?'Demo Reviewer':null,version:1,is_demo,updated_at:collectedAt});
+      await stableInsert(db,'data_mappings',{id,regulatory_field_id,data_field_id,canonical_element_id,transformation,sql_expression:null,python_expression:null,business_rule, mapping_status,owner,approved_by:mapping_status==='VALIDATED'?'Demo Reviewer':null,version:1,is_demo,updated_at:collectedAt});
     }
 
     const pipelineSeed = [
       ['pipeline-regulatory-demo','regulatory-demo-reference','RAW → STANDARDIZED → CANONICAL → REGULATORY → VALIDATED → OUTPUT','Node.js / SQLite demo executor','Data Platform Demo','ACTIVE'],
       ['pipeline-rcomp-reference','susep-rcomp-reference','Insurance policy source → canonical policy/premium → R_COMP field mapping','Reference-only mapping; DBF writer not enabled','Insurance Data','REFERENCE_ONLY'],
     ];
-    for (const [id,name,description,technology,owner,status] of pipelineSeed) stableInsert(db,'pipelines',{id,name,description,technology,owner,status,is_demo:1});
+    for (const [id,name,description,technology,owner,status] of pipelineSeed) await stableInsert(db,'pipelines',{id,name,description,technology,owner,status,is_demo:1});
     const dependencyPairs = [
       ['pipeline-regulatory-demo','map-4111-cnpj'],['pipeline-regulatory-demo','map-4111-account'],['pipeline-regulatory-demo','map-4111-balance'],['pipeline-regulatory-demo','map-4111-date'],
       ['pipeline-regulatory-demo','map-3040-client-id'],['pipeline-regulatory-demo','map-decripto-value'],['pipeline-rcomp-reference','map-rcomp-policy'],['pipeline-rcomp-reference','map-rcomp-premium'],
     ];
-    dependencyPairs.forEach(([pipeline_id,mapping_id],index)=>stableInsert(db,'pipeline_dependencies',{id:`dep-${index+1}`,pipeline_id,mapping_id,dependency_type:'READS',is_demo:1}));
+    for (const [pipeline_id, mapping_id] of dependencyPairs) await stableInsert(db,'pipeline_dependencies',{id:`dep-${dependencyPairs.findIndex((pair)=>pair[0]===pipeline_id&&pair[1]===mapping_id)+1}`,pipeline_id,mapping_id,dependency_type:'READS',is_demo:1});
 
     const dqSeed = [
       ['dq-4111-cnpj-not-null','fld-4111-cnpj','map-4111-cnpj','CNPJ institucional presente','NOT_NULL',null,'HIGH','CNPJ é obrigatório no cabeçalho do Documento 4111.',bcb4111SourceRef],
@@ -542,14 +559,14 @@ export function seedDatabase(db) {
       ['dq-rcomp-premium-nonnegative','fld-rcomp-premio','map-rcomp-premium','Prêmio não negativo (fixture de demonstração)','RANGE',JSON.stringify({min:0}),'MEDIUM','Regra interna de demonstração; não é transcrição de regra de domínio da SUSEP.',susepSourceRef],
       ['dq-decripto-value-range','fld-decripto-0110-operation-value','map-decripto-value','Valor da operação diferente de zero','RANGE',JSON.stringify({min:0.01}),'HIGH','O manual descreve OperacaoValor com valor diferente de zero.',rfbSourceRef],
     ];
-    for (const [id,regulatory_field_id,mapping_id,name,rule_type,expression,severity,description,source] of dqSeed) stableInsert(db,'dq_rules',{id,regulatory_field_id,mapping_id,name,rule_type,expression,severity,description,source,is_demo:1});
+    for (const [id,regulatory_field_id,mapping_id,name,rule_type,expression,severity,description,source] of dqSeed) await stableInsert(db,'dq_rules',{id,regulatory_field_id,mapping_id,name,rule_type,expression,severity,description,source,is_demo:1});
 
     const deadlineSeed = [
       ['deadline-bcb-4111-20261002','obl-bcb-4111','2026-10-02','2026-10-07','OFFICIAL','https://www.bcb.gov.br/content/estabilidadefinanceira/Documents/Leiaute_de_documentos/saldosDiariosInstrucoesPreenchimentoV2.pdf','UPCOMING','Finance Data','Data-base 2026-10-02 + 3º dia útil subsequente. Dias úteis 05, 06 e 07/10/2026; calendários locais não inferidos. Fonte do prazo: manual 4111.',0],
       ['deadline-bcb-3040-202609','obl-bcb-scr-3040','2026-09','2026-10-14','OFFICIAL','https://www.bcb.gov.br/content/estabilidadefinanceira/supervisao/Prazos_Nao_contabeis_Cosif.pdf','UPCOMING','Regulatory Reporting','Data-base 2026-09; vencimento 14/10/2026 reproduzido do calendário oficial BCB 2026.',0],
       ['deadline-susep-rcomp-2026','obl-susep-rcomp','2026','2027-03-31','OFFICIAL','https://www.gov.br/susep/pt-br/servicos/mercado/enviar-dados/arquivos/manual_orientacao_envio_dados_Mar2026.pdf/@@display-file/file','UPCOMING','Insurance Reporting','Ano de dados 2026; manual SUSEP 02/2026 informa entrega anual até 31 de março.',0],
     ];
-    for (const [id,obligation_id,reference_period,due_date,deadline_type,source_url,status,owner,calculation_basis,is_demo] of deadlineSeed) stableInsert(db,'regulatory_deadlines',{id,obligation_id,reference_period,due_date,deadline_type,source_url,status,owner,calculation_basis,is_demo});
+    for (const [id,obligation_id,reference_period,due_date,deadline_type,source_url,status,owner,calculation_basis,is_demo] of deadlineSeed) await stableInsert(db,'regulatory_deadlines',{id,obligation_id,reference_period,due_date,deadline_type,source_url,status,owner,calculation_basis,is_demo});
 
     const controlSeed = [
       ['control-4111-cnpj','Validação de cabeçalho do Documento 4111','obl-bcb-4111','req-4111-xml','Finance Data','Per submission','SCHEMA + DQ','NOT_RUN','ACTIVE'],
@@ -558,7 +575,7 @@ export function seedDatabase(db) {
       ['control-anpd-cis','Registro e escalonamento de incidente','obl-anpd-cis','req-anpd-cis','Privacy & Security','Event-driven','Incident record + decision evidence','NOT_RUN','ACTIVE'],
       ['control-susep-rcomp','Checagem de campos do arquivo R_COMP','obl-susep-rcomp','req-susep-rcomp','Insurance Reporting','Annual','DQ + file validation','NOT_RUN','ACTIVE'],
     ];
-    for (const [id,control_name,obligation_id,requirement_id,owner,frequency,evidence_type,result,status] of controlSeed) stableInsert(db,'regulatory_controls',{id,control_name,obligation_id,requirement_id,owner,frequency,evidence_type,last_execution:null,result,status,is_demo:1});
+    for (const [id,control_name,obligation_id,requirement_id,owner,frequency,evidence_type,result,status] of controlSeed) await stableInsert(db,'regulatory_controls',{id,control_name,obligation_id,requirement_id,owner,frequency,evidence_type,last_execution:null,result,status,is_demo:1});
     const evidenceSeed = [
       ['evidence-source-4111','obl-bcb-4111','control-4111-cnpj','OFFICIAL_SOURCE_EXCERPT','Manual oficial Documento 4111 — excerto com hash de texto','src-bcb-4111-manual','Available — SHA-256 do excerto, não do PDF original.'],
       ['evidence-demo-schema-4111','obl-bcb-4111','control-4111-cnpj','SCHEMA_METADATA','Campos catalogados para o schema 4111','schema-bcb-4111-v2026','DEMO CONFIGURATION; metadata derivada de excerto oficial.'],
@@ -570,7 +587,7 @@ export function seedDatabase(db) {
       const collected_at = collectedAt;
       const artifact_path = sourceKey.startsWith('src-') ? source?.source_url : null;
       const content_hash = source?.excerpt ? hash(source.excerpt) : null;
-      stableInsert(db,'evidence_items',{id,obligation_id,control_id,evidence_type,title,artifact_path,collected_at,source_reference:source?.source_url || sourceKey,content_hash,status,is_demo:1});
+      await stableInsert(db,'evidence_items',{id,obligation_id,control_id,evidence_type,title,artifact_path,collected_at,source_reference:source?.source_url || sourceKey,content_hash,status,is_demo:1});
     }
 
     const changeRows = [
@@ -601,8 +618,8 @@ export function seedDatabase(db) {
     ];
     for (const row of changeRows) {
       const impact = calculateImpacts(row.change_type,{field:row.field});
-      stableInsert(db,'regulatory_changes',{...row,severity:impact.level,is_demo:0});
-      for (const item of impact.impacts) stableInsert(db,'technical_impacts',{id:`impact-${row.id}-${item.impactType.toLowerCase()}`,regulatory_change_id:row.id,impact_type:item.impactType,severity:item.severity,score:item.score,description:item.description,recommended_action:item.recommendedAction,rationale:item.rationale});
+      await stableInsert(db,'regulatory_changes',{...row,severity:impact.level,is_demo:0});
+      for (const item of impact.impacts) await stableInsert(db,'technical_impacts',{id:`impact-${row.id}-${item.impactType.toLowerCase()}`,regulatory_change_id:row.id,impact_type:item.impactType,severity:item.severity,score:item.score,description:item.description,recommended_action:item.recommendedAction,rationale:item.rationale});
     }
 
     const cases = [
@@ -613,17 +630,15 @@ export function seedDatabase(db) {
       ['case-anpd-cis','CASE-004','ANPD — Comunicação de incidente: obrigação event-driven','anpd','obl-anpd-cis','Cadeia de requisito, critérios de aplicabilidade, janela de três dias úteis e canal SEI!ANPD.','REFERENCE_STRUCTURED','Prazo apresentado com ressalva de legislação específica; sem incidente real ou dados pessoais no demo.','src-anpd-cis',0],
       ['case-rfb-decripto','CASE-005','RFB — DeCripto: leiaute pipe-delimited versão 1.01','rfb','obl-rfb-decripto','Schema registry parcial dos registros 0000 e 0110 e change log v1.0 → v1.01.','REFERENCE_STRUCTURED','24 campos catalogados em 2 registros de um manual mais amplo. Sem adapter de geração pronto para o arquivo completo.','src-rfb-decripto',0],
     ];
-    for (const [id,code,title,regulator_id,obligation_id,scenario,status,implementation_notes,source_id,is_demo] of cases) stableInsert(db,'regulatory_cases',{id,code,title,regulator_id,obligation_id,scenario,status,implementation_notes,source_id,is_demo});
+    for (const [id,code,title,regulator_id,obligation_id,scenario,status,implementation_notes,source_id,is_demo] of cases) await stableInsert(db,'regulatory_cases',{id,code,title,regulator_id,obligation_id,scenario,status,implementation_notes,source_id,is_demo});
 
-    const seededSourceCount = db.prepare('SELECT COUNT(*) AS count FROM regulatory_sources').get().count;
-    stableInsert(db,'job_runs',{id:'job-bootstrap-official-excerpts',job_name:'seed_official_source_excerpts',started_at:collectedAt,finished_at:collectedAt,status:'SUCCEEDED',records_processed:seededSourceCount,records_created:seededSourceCount,records_updated:0,errors:null,result_json:JSON.stringify({official_regulators:6,source_excerpt_hashes:'SHA-256 over curated excerpt text; not original remote payloads',raw_remote_snapshots:0,seeded_obligation_count:obligations.length})});
-    stableInsert(db,'system_settings',{key:'seed_version',value:'2026-10-02.1',updated_at:collectedAt});
-    stableInsert(db,'system_settings',{key:'official_raw_snapshot_count',value:'0',updated_at:collectedAt});
+    const seededSourceCount = (await db.prepare('SELECT COUNT(*) AS count FROM regulatory_sources').get()).count;
+    await stableInsert(db,'job_runs',{id:'job-bootstrap-official-excerpts',job_name:'seed_official_source_excerpts',started_at:collectedAt,finished_at:collectedAt,status:'SUCCEEDED',records_processed:seededSourceCount,records_created:seededSourceCount,records_updated:0,errors:null,result_json:JSON.stringify({official_regulators:6,source_excerpt_hashes:'SHA-256 over curated excerpt text; not original remote payloads',raw_remote_snapshots:0,seeded_obligation_count:obligations.length})});
+    await stableInsert(db,'system_settings',{key:'seed_version',value:'2026-10-02.1',updated_at:collectedAt});
+    await stableInsert(db,'system_settings',{key:'official_raw_snapshot_count',value:'0',updated_at:collectedAt});
 
-    db.exec('COMMIT');
     return { seeded: true, regulators: 6, obligations: obligations.length, sources: seededSourceCount };
   } catch (error) {
-    db.exec('ROLLBACK');
     throw error;
   }
 }

@@ -114,10 +114,10 @@ export function evaluateRule(value, ruleType, expression = {}, context = {}) {
   }
 }
 
-export function runDqAgainstSeededData(db, { runId, now = Date.now() } = {}) {
+export async function runDqAgainstSeededData(db, { runId, now = Date.now() } = {}) {
   const startedAt = new Date(now).toISOString();
   const dqRunId = runId || cryptoId();
-  const rules = db.prepare(`
+  const rules = await db.prepare(`
     SELECT r.*, m.data_field_id, df.name AS data_field_name, ds.id AS dataset_id
     FROM dq_rules r
     LEFT JOIN data_mappings m ON m.id = r.mapping_id
@@ -126,7 +126,7 @@ export function runDqAgainstSeededData(db, { runId, now = Date.now() } = {}) {
     ORDER BY r.id
   `).all();
 
-  db.prepare(`INSERT INTO dq_runs (id, started_at, status, is_demo) VALUES (?, ?, 'RUNNING', 1)`).run(dqRunId, startedAt);
+  await db.prepare(`INSERT INTO dq_runs (id, started_at, status, is_demo) VALUES (?, ?, 'RUNNING', 1)`).run(dqRunId, startedAt);
   const insertResult = db.prepare(`
     INSERT INTO dq_run_results
     (id, dq_run_id, dq_rule_id, dataset_row_key, status, actual_value, expected, message, created_at, is_demo)
@@ -138,12 +138,12 @@ export function runDqAgainstSeededData(db, { runId, now = Date.now() } = {}) {
 
   for (const rule of rules) {
     if (!rule.data_field_id || !rule.dataset_id) {
-      insertResult.run(cryptoId(), dqRunId, rule.id, null, 'NOT_RUN', null, null, 'Regra sem mapping para dado interno; requer configuração.', new Date().toISOString());
+      await insertResult.run(cryptoId(), dqRunId, rule.id, null, 'NOT_RUN', null, null, 'Regra sem mapping para dado interno; requer configuração.', new Date().toISOString());
       continue;
     }
-    const rows = db.prepare('SELECT row_key, data_json FROM demo_data WHERE dataset_id = ? AND is_demo = 1 ORDER BY row_key').all(rule.dataset_id);
+    const rows = await db.prepare('SELECT row_key, data_json FROM demo_data WHERE dataset_id = ? AND is_demo = 1 ORDER BY row_key').all(rule.dataset_id);
     if (!rows.length) {
-      insertResult.run(cryptoId(), dqRunId, rule.id, null, 'NOT_RUN', null, null, 'Nenhuma linha DEMO DATA disponível para avaliação.', new Date().toISOString());
+      await insertResult.run(cryptoId(), dqRunId, rule.id, null, 'NOT_RUN', null, null, 'Nenhuma linha DEMO DATA disponível para avaliação.', new Date().toISOString());
       continue;
     }
     for (const row of rows) {
@@ -155,7 +155,7 @@ export function runDqAgainstSeededData(db, { runId, now = Date.now() } = {}) {
       if (status === 'PASS') passed += 1;
       if (status === 'FAIL') failed += 1;
       if (status === 'PASS' || status === 'FAIL') evaluated += 1;
-      insertResult.run(
+      await insertResult.run(
         cryptoId(), dqRunId, rule.id, row.row_key, status,
         value === undefined ? null : String(value),
         safeJson(evaluatedResult.expected), evaluatedResult.message,
@@ -165,7 +165,7 @@ export function runDqAgainstSeededData(db, { runId, now = Date.now() } = {}) {
   }
   const finishedAt = new Date().toISOString();
   const finalStatus = failed ? 'COMPLETED_WITH_FAILURES' : 'COMPLETED';
-  db.prepare(`UPDATE dq_runs SET finished_at = ?, status = ?, rules_evaluated = ?, passed = ?, failed = ? WHERE id = ?`)
+  await db.prepare(`UPDATE dq_runs SET finished_at = ?, status = ?, rules_evaluated = ?, passed = ?, failed = ? WHERE id = ?`)
     .run(finishedAt, finalStatus, evaluated, passed, failed, dqRunId);
   return { id: dqRunId, started_at: startedAt, finished_at: finishedAt, status: finalStatus, rules_evaluated: evaluated, passed, failed };
 }
