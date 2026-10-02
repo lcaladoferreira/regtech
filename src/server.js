@@ -71,7 +71,7 @@ export function createAppServer({ db = createDatabase(), closeDbOnStop = false }
   return { server, db };
 }
 
-async function handleApi(req, res, db, url, requestId) {
+export async function handleApi(req, res, db, url, requestId) {
   const pathname = decodeURIComponent(url.pathname);
   const method = req.method || 'GET';
   if (method === 'OPTIONS') {
