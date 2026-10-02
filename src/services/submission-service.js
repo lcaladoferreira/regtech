@@ -8,7 +8,7 @@ import { getPath, serializeWithAdapter, validateConfiguredPayload } from '../eng
 import { startJobRun, finishJobRun } from '../engines/ingestion.js';
 
 const repoRoot = resolve(fileURLToPath(new URL('../../', import.meta.url)));
-const artifactRoot = resolve(repoRoot, 'storage', 'demo-artifacts');
+const artifactRoot = resolve(process.env.ARTIFACT_ROOT || (process.env.VERCEL === '1' ? '/tmp/regtech-demo-artifacts' : resolve(repoRoot, 'storage', 'demo-artifacts')));
 
 export class SubmissionError extends Error {
   constructor(message, statusCode = 400, code = 'SUBMISSION_ERROR') {
@@ -174,7 +174,7 @@ export function runDemoPipeline(db, { obligationId = 'obl-bcb-4111', referencePe
 
 export function readArtifact(relativePath) {
   const safe = sanitizeArtifactPath(relativePath);
-  const absolute = resolve(repoRoot, safe);
+  const absolute = resolve(artifactRoot, basename(safe));
   if (!absolute.startsWith(`${artifactRoot}/`) || !existsSync(absolute)) return null;
   return { body: readFileSync(absolute), filename: basename(absolute) };
 }
