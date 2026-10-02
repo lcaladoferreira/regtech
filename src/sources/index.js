@@ -53,17 +53,17 @@ export async function syncOfficialRegistry(db) {
   let created = 0;
   for (const adapter of ADAPTERS) {
     for (const declared of adapter.sources) {
-      const existing = await db.prepare('SELECT id FROM regulatory_sources WHERE source_url = ? AND version = ?').get(declared.url, '');
+      const existing = await db.prepare('SELECT id FROM regulatory_sources WHERE id = ? OR (source_url = ? AND version = ?) LIMIT 1').get(declared.id, declared.url, '');
       const values = [
         declared.id, adapter.regulatorId, declared.url, declared.title, adapter.sourceAuthority, declared.sourceType,
         adapter.authority, adapter.name, declared.parser ?? 'html',
         pollingFrequencyMinutes(declared.priority), adapter.discoveryStrategy, new Date().toISOString(),
       ];
       if (existing) {
-        await db.prepare(`UPDATE regulatory_sources SET source_title = ?, source_authority = ?, source_type = ?, authority = ?,
+        await db.prepare(`UPDATE regulatory_sources SET source_url = ?, source_title = ?, source_authority = ?, source_type = ?, authority = ?,
             adapter = ?, parser = ?, polling_frequency_minutes = ?, discovery_strategy = ?, enabled = 1 WHERE id = ?`)
-          .run(declared.title, adapter.sourceAuthority, declared.sourceType, adapter.authority, adapter.name,
-            declared.parser ?? 'html', pollingFrequencyMinutes(declared.priority), adapter.discoveryStrategy, declared.id);
+          .run(declared.url, declared.title, adapter.sourceAuthority, declared.sourceType, adapter.authority, adapter.name,
+            declared.parser ?? 'html', pollingFrequencyMinutes(declared.priority), adapter.discoveryStrategy, existing.id);
       } else {
         await db.prepare(`INSERT INTO regulatory_sources (id, regulator_id, source_url, source_title, source_authority, source_type,
             authority, adapter, parser, polling_frequency_minutes, discovery_strategy, version, status, created_at)
