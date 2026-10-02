@@ -42,7 +42,7 @@ export function parsePdf(bytes) {
       }
     }
   }
-  const extracted = text.replace(/\s+/g, ' ').trim();
+  const extracted = text.replace(/\u0000/g, '').replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, ' ').replace(/\s+/g, ' ').trim();
   if (extracted.length >= 200) {
     return {
       parse_status: 'PARSED_TEXT',
