@@ -5,7 +5,7 @@
   "description": "Auditable, multi-regulator regulatory data intelligence platform (zero-dependency Node + SQLite demo).",
   "type": "module",
   "engines": {
-    "node": ">=22.5.0"
+    "node": "24.x"
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
