@@ -28,14 +28,16 @@ Field counts are catalogued inventory counts, **not** a claim that a complete of
 
 ## Run locally
 
-**Requirements:** Node.js `>=22.5.0` (tested with Node `v22.22.3`). The implementation uses the experimental built-in `node:sqlite`; no npm packages are required.
+**Requirements:** Node.js `>=22.5.0` (tested with Node `v22.22.3`). Development uses the experimental built-in `node:sqlite`; the production-only dependencies are `pg` (PostgreSQL) and `@vercel/blob` (Vercel Blob), both optional at dev time.
 
 ```bash
-npm test
-npm start
+npm test        # 26 tests across 4 suites (unit, live-ingestion, postgres-dialect, security)
+npm start       # boots the server on PORT (default 3000) with dev SQLite
+npm run migrate # applies outstanding additive migrations and prints schema_migrations
+npm run collect # runs one ingestion cycle for due official sources (--all disables the due-window filter, --limit=N caps it)
 ```
 
-Open <http://localhost:3000>. The server binds to `0.0.0.0` for hosted previews. The first start creates `data/regtech.sqlite`, applies the numbered SQL migrations in order, and seeds the database. The local SQLite file, write-ahead log and generated demo artifacts are ignored by Git.
+Open <http://localhost:3000>. The server binds to `0.0.0.0` for hosted previews. The first start creates `data/regtech.sqlite`, applies the numbered SQL migrations in order, and seeds the database (dev only). The local SQLite file, write-ahead log, `storage/` snapshot directory and generated demo artifacts are ignored by Git.
 
 Optional development mode:
 
@@ -139,6 +141,7 @@ The browser UI is a responsive, information-dense workspace with:
 ## API reference
 
 All API routes are same-origin under `/api`; JSON request bodies are expected for mutations.
+**Every mutation (POST/PUT/DELETE/PATCH) and the collection trigger require `Authorization: Bearer`** — `ADMIN_API_KEY` (or `CRON_SECRET` for `/api/jobs/collect`). In production these fail **closed** with `503 AUTH_NOT_CONFIGURED` when the secret is unset; only the stateless helper `POST /api/norm-diff/compare` stays open. GETs are public read-only views.
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -152,20 +155,37 @@ All API routes are same-origin under `/api`; JSON request bodies are expected fo
 | GET / POST | `/api/dq`, `/api/dq/run` | DQ inventory and execution over DEMO DATA fixtures |
 | GET / POST | `/api/deadlines`, `/api/deadlines/internal` | Read all separated deadlines; create an **internal-only** target |
 | GET | `/api/submissions`; POST `/api/submissions/generate`, `/api/submissions/validate`, `/api/pipelines/run` | Generate and validate a generic, explicitly synthetic local artifact |
-| GET | `/api/artifacts/:filename` | Download an artifact from the demo artifact directory only |
+| GET | `/api/sources/:id`, `/api/sources/:id/snapshots`, `/api/sources/:id/checks` | Source provenance detail: storage/ETag metadata, immutable snapshot history, verification outcomes |
+| GET | `/api/sources/:id/snapshots/:sid/content` | Re-serve the exact stored raw bytes with `X-Content-Sha256` |
+| POST | `/api/sources/sync` | Refresh the monitored-source registry from the code-defined adapters (idempotent; never overwrites collected state) |
+| GET | `/api/changes/:id` | Full change record including diff summary and snapshot lineage |
+| GET | `/api/artifacts/:filename` | Download an artifact from the durable storage object addressed by `artifact_path` |
 | GET | `/api/sources`, `/api/evidence`, `/api/audit`; GET / POST `/api/controls` | Source, evidence, control and audit registers; create an audit-logged demo control definition |
 | POST | `/api/evidence` | Add audit-logged evidence metadata (no binary upload) |
 | GET | `/api/regulatory`, `/api/cases`, `/api/search?q=...` | Regulatory operations, reference cases and global search |
 | GET / POST | `/api/jobs`, `/api/jobs/collect_sources`, `/api/jobs/:name/run` | Inspect/execute bounded processing jobs |
+| GET / POST | `/api/jobs/collect` | Trigger the cron collection cycle (Vercel Cron calls the GET form); **both forms require `Authorization: Bearer` with `CRON_SECRET` or `ADMIN_API_KEY`** |
 | GET / POST | `/api/errors`, `/api/errors/:id/retry` | Inspect persisted ingestion errors and retry a linked source |
 
 ### Generic submission adapters
 
 `src/engines/submission-adapters.js` provides generic XML, CSV, JSON, fixed-width and pipe-delimited serializers with metadata-based local checks. Adapter support is not the same as regulator support. DBF/MDB writers, regulator transport/authentication, official validator integration, regulator acknowledgements and production credentials are not implemented. The only seeded runnable mapping/schema configuration is a clearly labeled BCB 4111 demonstration; it is a test case, not the product's architecture or a real submission. A local status of `READY` means **internal review only**.
 
+## Production deployment (Vercel + PostgreSQL + Vercel Blob)
+
+The Vercel entry point is the single function gateway `api/index.js` (configured by `vercel.json`, with static assets served from `public/`); it opens the database once per warm instance and answers `503` honestly if persistence is unavailable.
+
+1. **Database** — provision PostgreSQL (Neon, Vercel Postgres or Supabase) and set `DATABASE_URL` (pooled connection string recommended for serverless). Migrations are additive-only and are applied idempotently by `applyMigrations` at boot (numbered SQL files in `migrations/postgres/`); run `npm run migrate` against the same URL from a Node environment for explicit control. Never auto-runs destructive changes.
+2. **Durable storage** — create a Vercel Blob store and set `BLOB_READ_WRITE_TOKEN` (raw snapshots land in Blob automatically; fallback `STORAGE_PROVIDER=database` uses `BYTEA`).
+3. **Secrets** — set `ADMIN_API_KEY` (long random value; the UI prompts for it on the Jobs page and stores it in browser `localStorage` as `lcf_admin_key`) and `CRON_SECRET`.
+4. **Cron** — `vercel.json` schedules `5 8 * * *` against `GET /api/jobs/collect`; Vercel attaches `Authorization: Bearer $CRON_SECRET` automatically when `CRON_SECRET` is set.
+5. **Environment variables** (see `.env.example`): `DATABASE_URL`, `ADMIN_API_KEY`, `CRON_SECRET`, `BLOB_READ_WRITE_TOKEN`, optional `STORAGE_PROVIDER`, `PG_POOL_MAX`, `LCF_ALLOW_SEED`.
+
+**Verification status (honest):** from the current development sandbox, outbound connections to `bcb.gov.br`, `gov.br`, `in.gov.br` and `planalto.gov.br` fail at the TCP/TLS level (network egress restriction), so no real official capture has been stored from this environment — the seed correctly reports **zero raw snapshots**. The full fetch→hash→persist→diff chain is proven against a realistic in-process HTTP layer in `test/ingestion-live.test.js` (conditional GET, byte-identical re-serve, retries, failure persistence). The first `npm run collect` in the deployed environment either captures official bytes (mode becomes `LIVE` with counts) or persists a truthful `ingestion_errors` entry; both outcomes display as such.
+
 ## Tests and validation
 
-Run `npm test`. The Node built-in test suite currently contains ten tests covering:
+Run `npm test`. The Node built-in test suite currently contains 26 tests across four files, covering:
 
 1. migration, verified seed counts, foreign keys and seed idempotence;
 2. deterministic impacts versus structural-footprint scoring;
@@ -176,21 +196,24 @@ Run `npm test`. The Node built-in test suite currently contains ten tests coveri
 7. mock source capture, immutable raw hashes and off-allowlist redirect rejection;
 8. local demo pipeline output and non-official validation boundary;
 9. HTTP inventory, internal deadline creation/date validation, mapping/evidence/control writes and norm-diff API;
-10. all browser route renderers against an in-memory live API.
+10. all browser route renderers against an in-memory live API;
+11. (`ingestion-live.test.js`) the real capture chain with a controlled fetcher: first capture, conditional GET 304, hash-compare, content-change ledger with TEXT diff, retry/backoff, persistent-failure records, snapshot immutability triggers, byte-exact re-serving and adapter-registry invariants;
+12. (`postgres-dialect.test.js`) `?`→`$n` translation outside literals/quotes/comments, the PgDriver statement/transaction surface against a fake `pg` pool, migration idempotence and dialect-correctness of the PostgreSQL baseline;
+13. (`security.test.js`) fail-closed production auth, cron/admin bearer gates on every mutation **including the GET cron form**, refusal to seed or fabricate in production, storage-provider policy and degraded-mode honesty.
 
-The latest local run passed **10/10 tests**. JavaScript syntax checks (`node --check`) pass. The app was started locally on port 3000; migration/seed, static assets and core API endpoints returned successfully. There is no frontend bundler or separate build command.
+The latest local run passed **26/26 tests**. JavaScript syntax checks (`node --check`) pass. The app was started locally on port 3000; migration/seed, static assets and core API endpoints returned successfully. There is no frontend bundler or separate build command.
 
 ## Limitations and next steps
 
 This repository is an auditable prototype, not a production compliance platform. Important gaps are explicit:
 
-- only curated excerpts are seeded; no original regulatory bytes or hashes are present yet (raw snapshot count 0);
+- only curated excerpts are seeded; no original regulatory bytes or hashes are present yet (raw snapshot count 0) because this repository's network sandbox blocks egress to the official hosts — the capture chain is proven by tests with controlled fetchers and will populate on first run in a networked deployment;
 - source-network access may fail in a restricted environment, and PDF/XLS/DBF/MDB parsing is incomplete;
 - extracted obligations and fields require legal/domain review; no automated legal interpretation or entity applicability decision exists;
 - several documents are partial or unstructured; no full OpenAPI/XSD or regulator-specific validator is claimed;
 - only BCB 4111 has a configured runnable adapter; local XML checks are intentionally lightweight;
 - default business-day holidays cover a small national date set and are not a complete regulator, bank, state or entity-specific calendar;
-- no authentication, authorization, tenant isolation, secrets management, production database, queue, object store or external control integration is configured;
+- authentication is a single shared bearer secret (`ADMIN_API_KEY`) — there is no user identity, role model, tenant isolation or per-entity authorization yet; queues and external control-system integrations remain unimplemented;
 - the internal data estate, evidence artifacts and submission payloads are demo-only.
 
-Reasonable next steps are to capture and retain official source bytes in an approved networked environment (with response URL, timestamps, MIME type and SHA-256), expand parser/schema coverage with human review, add entity-specific calendars and applicability ownership, implement regulator-tested adapters/validators, and add authentication and deployment controls before production data is introduced. PostgreSQL/FastAPI are not prerequisites for running this repository; the current no-dependency SQLite implementation reflects the available local runtime.
+Reasonable next steps are to capture and retain official source bytes in an approved networked environment (with response URL, timestamps, MIME type and SHA-256), expand parser/schema coverage with human review, add entity-specific calendars and applicability ownership, implement regulator-tested adapters/validators, and add authentication and deployment controls before production data is introduced. Reasonable next steps include scheduled human-review queues (approve/candidate changes into confirmed records with reviewer identity), deeper PDF/XLS text extraction behind the existing `UNSTRUCTURED` boundary, multi-user authorization, and per-obligation source→field linkage so ingestion diffs can be routed to impacted owners automatically.

@@ -7,3 +7,6 @@
 # Logs and temporary files
 *.log
 .DS_Store
+
+# Installed dependencies (reproducible via package-lock.json)
+node_modules/

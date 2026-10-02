@@ -1,16 +1,22 @@
 {
   "name": "lcf-regulatory-data-intelligence",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Auditable, multi-regulator regulatory data intelligence platform (zero-dependency Node + SQLite demo).",
+  "description": "Regulatory Data Intelligence platform with real official-source ingestion, PostgreSQL persistence and durable snapshot storage.",
   "type": "module",
   "engines": {
     "node": "24.x"
   },
   "scripts": {
-    "start": "node --disable-warning=ExperimentalWarning src/server.js",
-    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
-    "test": "node --disable-warning=ExperimentalWarning --test",
-    "test:watch": "node --disable-warning=ExperimentalWarning --test --watch"
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
+    "migrate": "node scripts/migrate.js",
+    "collect": "node scripts/collect.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
+    "test:watch": "node --disable-warning=ExperimentalWarning --test --watch test/"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.2.0",
+    "pg": "^8.23.1"
   }
 }
