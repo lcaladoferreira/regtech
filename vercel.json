@@ -1,9 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "functions": {
-    "server.js": {
-      "includeFiles": "{public/**,migrations/**}"
-    }
-  }
+  "framework": null
 }
