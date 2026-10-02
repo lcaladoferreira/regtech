@@ -1,13 +1,13 @@
 /**
- * Vercel Serverless entry point — optional catch-all function for every /api/* route.
- * No rewrites are configured: the function receives the original request URL directly.
+ * Vercel Serverless entry point (single function gateway for /api/*, routed by vercel.json
+ * rewrites — same shape proven by the previous production deployments of this project).
  *
  * Persistence rules on Vercel:
  * - Production data lives ONLY in PostgreSQL (DATABASE_URL). Never SQLite, never /tmp.
  * - If DATABASE_URL is missing or unreachable the function still answers /api/health with a
  *   degraded status and returns 503 on data routes — it never fabricates data and never
  *   silently falls back to a synthetic store.
- * - The database handle is opened once per warm instance; migrations are additive-only.
+ * - The database handle is opened once per warm instance (lazily); migrations are additive-only.
  */
 import { randomUUID } from 'node:crypto';
 import { openDatabase } from '../src/db.js';
@@ -25,16 +25,16 @@ export function getBootstrap() {
 
 export default async function handler(req, res) {
   const base = `https://${req.headers.host || 'localhost'}`;
-  const url = new URL(req.url || '/api', base);
-  // Vercel preserves the original path in req.url; normalize defensively for runtimes that
-  // dispatch the function with a path relative to its route.
-  if (!url.pathname.startsWith('/api')) url.pathname = `/api${url.pathname === '/' ? '' : url.pathname}`;
+  const rewritten = new URL(req.url || '/api', base);
+  const path = rewritten.searchParams.get('__path') || '';
+  rewritten.searchParams.delete('__path');
+  rewritten.pathname = path ? `/api/${path}` : '/api';
 
   const requestId = randomUUID();
   const { db, error: dbError } = await getBootstrap();
 
   try {
-    await handleApi(req, res, db, url, requestId);
+    await handleApi(req, res, db, rewritten, requestId);
   } catch (error) {
     if (res.headersSent) return;
     const status = Number(error?.statusCode) || 500;
