@@ -3,10 +3,7 @@
   "framework": null,
   "functions": {
     "server.js": {
-      "includeFiles": [
-        "public/**",
-        "migrations/**"
-      ]
+      "includeFiles": "{public/**,migrations/**}"
     }
   }
 }
