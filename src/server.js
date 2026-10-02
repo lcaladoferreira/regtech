@@ -322,7 +322,7 @@ async function listObligations(db, params) {
       AND (? = '' OR o.status = ?)
       AND (? = '' OR o.frequency = ?)
       AND (? = '' OR lower(o.title || ' ' || o.description || ' ' || o.code || ' ' || o.category || ' ' || n.title) LIKE '%' || lower(?) || '%')
-    ORDER BY CASE WHEN next_official_deadline IS NULL THEN 1 ELSE 0 END, next_official_deadline, r.acronym, o.code`)
+    ORDER BY next_official_deadline ASC NULLS LAST, r.acronym, o.code`)
     .all(today, regulator, regulator, regulator, category, category, status, status, frequency, frequency, q, q);
   return rows.map((row) => ({
     ...row,
