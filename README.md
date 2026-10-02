@@ -173,7 +173,7 @@ All API routes are same-origin under `/api`; JSON request bodies are expected fo
 
 ## Production deployment (Vercel + PostgreSQL + Vercel Blob)
 
-The Vercel entry point is the single function gateway `api/index.js` (configured by `vercel.json`, with static assets served from `public/`); it opens the database once per warm instance and answers `503` honestly if persistence is unavailable.
+The Vercel entry point is the optional catch-all function `api/[[...path]].js` (no rewrites needed; static assets served from `public/`) — Vercel dispatches every `/api/*` request, including the cron trigger, through it; it opens the database once per warm instance and answers `503` honestly if persistence is unavailable.
 
 1. **Database** — provision PostgreSQL (Neon, Vercel Postgres or Supabase) and set `DATABASE_URL` (pooled connection string recommended for serverless). Migrations are additive-only and are applied idempotently by `applyMigrations` at boot (numbered SQL files in `migrations/postgres/`); run `npm run migrate` against the same URL from a Node environment for explicit control. Never auto-runs destructive changes.
 2. **Durable storage** — create a Vercel Blob store and set `BLOB_READ_WRITE_TOKEN` (raw snapshots land in Blob automatically; fallback `STORAGE_PROVIDER=database` uses `BYTEA`).
