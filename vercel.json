@@ -1,8 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "buildCommand": "echo 'no build step: static public/ assets plus Node.js serverless functions'",
+  "installCommand": "npm ci",
   "functions": {
-    "api/index.js": {
+    "api/**": {
       "includeFiles": {
         "migrations/**": true
       },
@@ -14,12 +16,6 @@
     {
       "path": "/api/jobs/collect",
       "schedule": "5 8 * * *"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/index?__path=:path*"
     }
   ]
 }

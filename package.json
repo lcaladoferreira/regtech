@@ -5,7 +5,7 @@
   "description": "Regulatory Data Intelligence platform with real official-source ingestion, PostgreSQL persistence and durable snapshot storage.",
   "type": "module",
   "engines": {
-    "node": "24.x"
+    "node": ">=22.5.0"
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",

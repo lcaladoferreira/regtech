@@ -1,5 +1,6 @@
 /**
- * Vercel Serverless entry point (single function gateway for /api/*).
+ * Vercel Serverless entry point — optional catch-all function for every /api/* route.
+ * No rewrites are configured: the function receives the original request URL directly.
  *
  * Persistence rules on Vercel:
  * - Production data lives ONLY in PostgreSQL (DATABASE_URL). Never SQLite, never /tmp.
@@ -24,16 +25,16 @@ export function getBootstrap() {
 
 export default async function handler(req, res) {
   const base = `https://${req.headers.host || 'localhost'}`;
-  const rewritten = new URL(req.url || '/api', base);
-  const path = rewritten.searchParams.get('__path') || '';
-  rewritten.searchParams.delete('__path');
-  rewritten.pathname = path ? `/api/${path}` : '/api';
+  const url = new URL(req.url || '/api', base);
+  // Vercel preserves the original path in req.url; normalize defensively for runtimes that
+  // dispatch the function with a path relative to its route.
+  if (!url.pathname.startsWith('/api')) url.pathname = `/api${url.pathname === '/' ? '' : url.pathname}`;
 
   const requestId = randomUUID();
   const { db, error: dbError } = await getBootstrap();
 
   try {
-    await handleApi(req, res, db, rewritten, requestId);
+    await handleApi(req, res, db, url, requestId);
   } catch (error) {
     if (res.headersSent) return;
     const status = Number(error?.statusCode) || 500;
