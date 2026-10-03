@@ -96,6 +96,8 @@ test('HTTP mutations are gated by ADMIN_API_KEY and the API fails closed, never 
     assert.equal(collectNoAuth.status, 401, 'cron endpoint must reject anonymous triggers');
     const collectGetNoAuth = await fetch(`${base}/api/jobs/collect`);
     assert.equal(collectGetNoAuth.status, 401, 'the GET cron trigger form must be auth-gated too');
+    const dailyAlertsNoAuth = await fetch(`${base}/api/jobs/alerts/daily`);
+    assert.equal(dailyAlertsNoAuth.status, 401, 'daily alert cron must reject anonymous triggers');
     const collectWrongToken = await fetch(`${base}/api/jobs/collect`, { headers: { Authorization: 'Bearer nope' } });
     assert.equal(collectWrongToken.status, 401);
     const retryNoAuth = await fetch(`${base}/api/errors/whatever/retry`, { method: 'POST' });
@@ -105,6 +107,16 @@ test('HTTP mutations are gated by ADMIN_API_KEY and the API fails closed, never 
     const health = await fetch(`${base}/api/health`);
     assert.equal(health.status, 200);
     assert.equal((await health.json()).status, 'ok');
+
+    process.env.ALERT_TOKEN_SECRET = 'alert-test-secret';
+    const subscribe = await fetch(`${base}/api/public/alerts/subscribe`, {
+      method:'POST', headers:{'content-type':'application/json'},
+      body:JSON.stringify({ email:'alerts@example.com', consent:true, authorities:['BCB'], topics:['LAYOUTS'], delivery_mode:'DAILY' }),
+    });
+    assert.equal(subscribe.status, 202, 'public double-opt-in signup must not require admin auth');
+    const subscription = await subscribe.json();
+    assert.equal(subscription.status, 'PENDING_CONFIRMATION');
+    assert.equal((await db.prepare("SELECT status FROM alert_subscribers WHERE email='alerts@example.com'").get()).status, 'PENDING');
   } finally {
     await new Promise((resolveClose) => server.close(resolveClose));
     await closeDatabase(db);
