@@ -643,6 +643,78 @@ export async function seedDatabase(db) {
   }
 }
 
+export async function bootstrapOfficialCatalog(db) {
+  const catalogVersion = '2026-10-03.1';
+  const existing = await db.prepare("SELECT value FROM system_settings WHERE key = 'official_catalog_version'").get();
+  if (existing?.value === catalogVersion) return { bootstrapped: false, reason: 'official_catalog_version exists', version: catalogVersion };
+
+  const collectedAt = isoNow();
+  const regulatorsSeed = [
+    ['bcb','Banco Central do Brasil','BCB','Brazil','Financial Services','https://www.bcb.gov.br'],
+    ['cvm','Comissão de Valores Mobiliários','CVM','Brazil','Capital Markets','https://www.gov.br/cvm'],
+    ['susep','Superintendência de Seguros Privados','SUSEP','Brazil','Insurance and Open Insurance','https://www.gov.br/susep'],
+    ['anpd','Autoridade Nacional de Proteção de Dados','ANPD','Brazil','Privacy and Data Protection','https://www.gov.br/anpd'],
+    ['coaf','Conselho de Controle de Atividades Financeiras','COAF','Brazil','AML / Financial Intelligence','https://www.gov.br/coaf'],
+    ['rfb','Receita Federal do Brasil','RFB','Brazil','Tax / Digital Assets','https://www.gov.br/receitafederal'],
+  ];
+  for (const [id,name,acronym,jurisdiction,sector,website] of regulatorsSeed) {
+    await stableInsert(db, 'regulators', { id,name,acronym,jurisdiction,sector,website,active:1 });
+  }
+
+  const regulationsSeed = [
+    ['reg-cmn-5037','bcb','RESOLUTION','CMN 5.037/2022','Resolução CMN nº 5.037, de 29 de setembro de 2022','O manual oficial do Documento 3040 referencia o art. 3º desta Resolução para a definição das operações de crédito.','2022-09-29',null,'ACTIVE','https://www.bcb.gov.br/estabilidadefinanceira/scrdoc3040'],
+    ['reg-bcb-208','bcb','RESOLUTION','BCB 208/2022','Resolução BCB nº 208, de 22 de março de 2022','A instrução oficial do Documento 4111 referencia esta Resolução como base normativa.','2022-03-22',null,'ACTIVE','https://www.bcb.gov.br/content/estabilidadefinanceira/Documents/Leiaute_de_documentos/saldosDiariosInstrucoesPreenchimentoV2.pdf'],
+    ['reg-cvm-80','cvm','RESOLUTION','CVM 80/2022','Resolução CVM nº 80, de 29 de março de 2022','Dispõe sobre registro e prestação de informações periódicas e eventuais por emissores de valores mobiliários admitidos à negociação em mercados regulamentados.','2022-03-29',null,'ACTIVE','https://conteudo.cvm.gov.br/export/sites/cvm/legislacao/resolucoes/anexos/001/resol080consolid.pdf'],
+    ['reg-susep-648','susep','CIRCULAR','SUSEP 648','Circular SUSEP nº 648','Normativo indicado pela tabela oficial de dados da SUSEP como referência para FIP e FIP Estatístico.',null,null,'ACTIVE','https://www.gov.br/susep/pt-br/servicos/mercado/enviar-dados/areas-responsaveis-pelos-dados'],
+    ['reg-susep-627','susep','CIRCULAR','SUSEP 627','Circular SUSEP nº 627','Normativo indicado pela tabela oficial da SUSEP para envio de determinados arquivos de dados.',null,null,'ACTIVE','https://www.gov.br/susep/pt-br/servicos/mercado/enviar-dados/areas-responsaveis-pelos-dados'],
+    ['reg-susep-openinsurance','susep','CIRCULAR','SUSEP 635/2021','Circular SUSEP nº 635, de 2021','Referenciada pelo Manual de Escopo de Dados e Serviços do Open Insurance versão 6.7.',null,null,'ACTIVE','https://www.gov.br/susep/pt-br/assuntos/open-insurance/arquivos/copy_of_Manual_de_Escopo_de_Dados_e_Servicos_v6.7.pdf/@@display-file/file'],
+    ['reg-anpd-15','anpd','RESOLUTION','CD/ANPD 15/2024','Resolução CD/ANPD nº 15, de 24 de abril de 2024','Aprova o Regulamento de Comunicação de Incidente de Segurança com Dados Pessoais.','2024-04-24',null,'ACTIVE','https://www.in.gov.br/en/web/dou/-/resolucao-cd/anpd-n-15-de-24-de-abril-de-2024-556243024'],
+    ['reg-law-9613','coaf','LAW','Lei 9.613/1998','Lei nº 9.613, de 3 de março de 1998','A página oficial do COAF remete aos arts. 9º, 10 e 11 como base das obrigações das pessoas obrigadas.','1998-03-03',null,'ACTIVE','https://www.planalto.gov.br/ccivil_03/leis/l9613.htm'],
+    ['reg-rfb-2291','rfb','INSTRUCTION','IN RFB 2.291/2025','Instrução Normativa RFB nº 2.291, de 14 de novembro de 2025','Institui novo modelo de captação de informações de criptoativos mediante a DeCripto; o manual oficial informa vigência a partir de 1º de julho de 2026.','2025-11-14','2026-07-01','ACTIVE','https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/manuais/manual-orientacao-leiaute-criptoativos/manual-de-orientacao-do-leiaute-da-decripto-v1.pdf'],
+  ];
+  for (const [id,regulator_id,type,number,title,description,publication_date,effective_date,status,source_url] of regulationsSeed) {
+    await stableInsert(db, 'regulations', {
+      id, regulator_id, type, number, title, description, publication_date, effective_date, status,
+      source_url, content_hash: null, content_hash_scope: null, source_excerpt: null, is_demo: 0,
+    });
+  }
+
+  for (const row of obligations) {
+    const score = scoreObligationFootprint(row, { fields: 0, mapped: 0 });
+    await stableInsert(db, 'regulatory_obligations', {
+      ...row,
+      impact_score: score.score,
+      impact_level: score.level,
+      impact_rationale: `Footprint heuristic (not legal severity): ${score.rationale}`,
+      is_demo: 0,
+      updated_at: collectedAt,
+    });
+  }
+
+  const obligationCount = (await db.prepare('SELECT COUNT(*) AS n FROM regulatory_obligations WHERE is_demo = 0').get()).n;
+  await db.prepare(`INSERT INTO system_settings (key,value,updated_at) VALUES (?,?,?)
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`)
+    .run('official_catalog_version', catalogVersion, collectedAt);
+  await stableInsert(db, 'job_runs', {
+    id: `job-bootstrap-official-catalog-${catalogVersion}`,
+    job_name: 'bootstrap_official_catalog',
+    started_at: collectedAt,
+    finished_at: collectedAt,
+    status: 'SUCCEEDED',
+    records_processed: obligations.length,
+    records_created: obligations.length,
+    records_updated: 0,
+    errors: null,
+    result_json: JSON.stringify({
+      version: catalogVersion,
+      source: 'curated source-backed regulatory catalog already maintained in src/seed.js',
+      synthetic_fixtures_imported: false,
+      obligation_count: Number(obligationCount || 0),
+    }),
+  });
+  return { bootstrapped: true, version: catalogVersion, obligations: Number(obligationCount || 0) };
+}
+
 function hash(text) {
   return createHash('sha256').update(String(text),'utf8').digest('hex');
 }
