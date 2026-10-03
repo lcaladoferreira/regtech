@@ -369,14 +369,14 @@ test('all browser routes render their page views against a live in-memory API', 
       '#/impact', '#/impact?id=obl-bcb-4111',
       '#/regulators', '#/regulators?regulator=susep', '#/changes', '#/schemas',
       '#/schemas?id=schema-susep-openinsurance-67', '#/norm-diff', '#/mapping', '#/catalog',
-      '#/lineage', '#/dq', '#/calendar', '#/submissions', '#/controls', '#/evidence',
+      '#/lineage', '#/dq', '#/calendar', '#/about', '#/admin', '#/submissions', '#/controls', '#/evidence',
       '#/regulatory', '#/engineering', '#/matrix', '#/cases', '#/system/jobs',
       '#/system/errors', '#/search?q=4111',
     ];
     for (const hash of routes) {
       globalThis.location.hash = hash;
       await windowHandlers.hashchange();
-      assert.match(pageElement.innerHTML, /<main class="page">/, hash);
+      assert.match(pageElement.innerHTML, /<main class="(?:page|public-main)">/, hash);
       assert.doesNotMatch(pageElement.innerHTML, /Workspace error/, hash);
     }
   } finally {

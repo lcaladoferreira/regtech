@@ -1,65 +1,73 @@
 const NAV_GROUPS = [
-  { title: 'Workspace', items: [
-    ['/dashboard', 'Overview', 'OV'],
-    ['/obligations', 'Obligation registry', 'OB'],
-    ['/regulators', 'Regulators', 'RG'],
-    ['/sources', 'Official sources', 'OS'],
-    ['/changes', 'Change feed', 'CH'],
-    ['/schemas', 'Schema registry', 'SC'],
-    ['/norm-diff', 'Norm diff', 'ND'],
+  { title: 'LCF RegTech', items: [
+    ['/dashboard', 'Visão geral', 'OV'],
+    ['/changes', 'Mudanças', 'MU'],
+    ['/sources', 'Fontes oficiais', 'FO'],
+    ['/regulators', 'Órgãos', 'OR'],
+    ['/obligations', 'Obrigações', 'OB'],
+    ['/schemas', 'Schemas', 'SC'],
+    ['/calendar', 'Prazos', 'PR'],
+    ['/about', 'Sobre', 'SB'],
   ] },
-  { title: 'Data intelligence', items: [
+];
+
+const ADMIN_NAV_GROUPS = [
+  { title: 'PUBLIC WORKSPACE', items: [['/dashboard', 'Visão geral pública', 'VW']] },
+  { title: 'ADMIN / OPERATIONS', items: [
+    ['/system/jobs', 'Jobs & runs', 'JR'],
+    ['/system/errors', 'Ingestion errors', 'ER'],
+    ['/norm-diff', 'Norm diff', 'ND'],
     ['/impact', 'Impact explorer', 'IM'],
     ['/mapping', 'Mapping studio', 'MP'],
     ['/catalog', 'Canonical catalog', 'CT'],
     ['/lineage', 'Data lineage', 'LN'],
     ['/dq', 'Data quality', 'DQ'],
     ['/matrix', 'Impact matrix', 'MX'],
-  ] },
-  { title: 'Controls & operations', items: [
-    ['/calendar', 'Deadline calendar', 'CA'],
-    ['/submissions', 'Submissions', 'SB'],
+    ['/submissions', 'Submissions demo', 'SD'],
     ['/controls', 'Controls', 'CO'],
-    ['/evidence', 'Evidence center', 'EV'],
+    ['/evidence', 'Evidence register', 'EV'],
     ['/regulatory', 'Regulatory ops', 'RO'],
     ['/engineering', 'Engineering impact', 'EN'],
     ['/cases', 'Reference cases', 'CS'],
-  ] },
-  { title: 'System', items: [
-    ['/system/jobs', 'Jobs & runs', 'JR'],
-    ['/system/errors', 'Ingestion errors', 'ER'],
+    ['/search', 'Workspace search', 'SE'],
   ] },
 ];
 
+const PUBLIC_ROUTES = new Set(['/dashboard', '/changes', '/sources', '/regulators', '/obligations', '/schemas', '/calendar', '/about']);
+const LCF_CONSULTING_SITE = 'https://www.lcfconsulting.com.br/';
+
 const PAGE_META = {
-  '/dashboard': ['Overview', 'Cross-regulator inventory and operational signals'],
-  '/obligations': ['Obligation registry', 'Search and compare sourced requirements across regulators'],
-  '/sources': ['Official sources', 'Monitored authorities, immutable snapshots, hashes and provenance'],
-  '/impact': ['Impact explorer', 'Trace a regulatory obligation into schemas, data, controls and evidence'],
-  '/regulators': ['Regulators', 'Shared inventory for the six configured Brazilian authorities'],
-  '/changes': ['Regulatory change feed', 'Source-linked change records and deterministic technical impacts'],
-  '/schemas': ['Schema registry', 'Version, parse scope, fields and explicit gaps in technical coverage'],
-  '/norm-diff': ['Norm diff', 'Lexical document comparison; human legal interpretation remains required'],
-  '/mapping': ['Mapping studio', 'Connect sourced regulatory fields to internal data and canonical concepts'],
-  '/catalog': ['Canonical catalog', 'Reusable business concepts linked to source fields and mappings'],
-  '/lineage': ['Data lineage', 'Navigate stored paths between internal data and obligations'],
-  '/dq': ['Data quality', 'Executable checks with visible DEMO DATA fixtures and failure results'],
-  '/calendar': ['Deadline calendar', 'Keep regulator-published due dates distinct from internal targets'],
-  '/submissions': ['Submission runs', 'Generated artifacts and local validation; never a regulator filing'],
-  '/controls': ['Control library', 'Controls linked to requirements, owners and evidence'],
-  '/evidence': ['Evidence center', 'Source, mapping, validation and artifact traceability'],
-  '/regulatory': ['Regulatory operations', 'Norms, effective dates, sources and applicability inventory'],
-  '/engineering': ['Engineering impact', 'Catalogued schemas, mappings, pipelines and DQ coverage'],
-  '/matrix': ['Impact matrix', 'Obligations connected to systems, datasets, pipelines and owners'],
-  '/cases': ['Reference cases', 'Concrete implementation slices and limitations by regulator'],
-  '/system/jobs': ['Jobs & runs', 'Source collection, parsing, impact, DQ and demo-pipeline runs'],
-  '/system/errors': ['Ingestion errors', 'Failures are persisted, visible and retryable where possible'],
-  '/search': ['Global search', 'Search obligations, regulations, fields, sources and changes'],
+  '/dashboard': ['Visão geral', 'Saiba o que mudou nas fontes regulatórias oficiais'],
+  '/obligations': ['Obrigações', 'Obrigações regulatórias e fontes oficiais catalogadas'],
+  '/sources': ['Fontes oficiais', 'Fontes primárias, histórico de verificações e capturas reais'],
+  '/impact': ['Impact explorer', 'Área interna: trilha entre obrigações, dados, controles e evidências'],
+  '/regulators': ['Órgãos', 'Autoridades regulatórias e fontes monitoradas'],
+  '/changes': ['Mudanças', 'Alterações detectadas nas fontes oficiais e referências documentadas'],
+  '/schemas': ['Schemas', 'Versões, campos catalogados e limites de cobertura'],
+  '/about': ['Sobre', 'LCF RegTech — Regulatory Data Intelligence by LCF Consulting'],
+  '/norm-diff': ['Norm diff', 'Área interna: comparação lexical de documentos'],
+  '/mapping': ['Mapping studio', 'Área interna: mapeamentos regulatórios e dados de demonstração'],
+  '/catalog': ['Canonical catalog', 'Área interna: conceitos canônicos e referências'],
+  '/lineage': ['Data lineage', 'Área interna: caminhos de dados de referência'],
+  '/dq': ['Data quality', 'Área interna: verificações sobre fixtures DEMO DATA'],
+  '/calendar': ['Prazos oficiais', 'Datas oficiais publicadas, com fonte e período'],
+  '/submissions': ['Submission runs', 'Área interna: artefatos locais, sem envio ao regulador'],
+  '/controls': ['Control library', 'Área interna: controles e evidências de demonstração'],
+  '/evidence': ['Evidence register', 'Área interna: registro de metadados e evidências'],
+  '/regulatory': ['Regulatory operations', 'Área interna: normas, vigência e aplicabilidade'],
+  '/engineering': ['Engineering impact', 'Área interna: schemas, mappings, pipelines e DQ'],
+  '/matrix': ['Impact matrix', 'Área interna: dados sintéticos de sistemas e obrigações'],
+  '/cases': ['Reference cases', 'Área interna: casos de referência e limitações'],
+  '/system/jobs': ['Jobs & runs', 'Admin / Operations: execução e auditoria de processamento'],
+  '/system/errors': ['Ingestion errors', 'Admin / Operations: falhas persistidas e retry'],
+  '/search': ['Busca', 'Pesquisa no inventário regulatório configurado'],
+  '/admin': ['Admin / Operations', 'Módulos internos de operação e desenvolvimento'],
 };
 
 const state = {
   renderId: 0,
   platform: null,
+  pageSeo: null,
   mappingEditor: null,
   mappingQuery: '',
   mappingStatus: '',
@@ -72,12 +80,60 @@ const state = {
 
 function routeState() {
   const raw = location.hash.startsWith('#') ? location.hash.slice(1) : '';
-  if (!raw) return { path: '/dashboard', params: new URLSearchParams() };
-  const [path, query = ''] = raw.split('?');
-  return { path: path || '/dashboard', params: new URLSearchParams(query) };
+  if (raw) {
+    const [path, query = ''] = raw.split('?');
+    return { path: path || '/dashboard', params: new URLSearchParams(query) };
+  }
+  const pathname = location.pathname || '/';
+  const params = new URLSearchParams(location.search || '');
+  if (pathname === '/') return { path: '/dashboard', params };
+  const patterns = [
+    [/^\/mudancas\/([^/]+)\/?$/, '/changes', 'id'],
+    [/^\/fontes\/([^/]+)\/?$/, '/sources', 'id'],
+    [/^\/obrigacoes\/([^/]+)\/?$/, '/obligations', 'id'],
+    [/^\/schemas\/([^/]+)\/?$/, '/schemas', 'id'],
+  ];
+  for (const [pattern, path, key] of patterns) {
+    const match = pathname.match(pattern);
+    if (match) { params.set(key, decodeURIComponent(match[1])); return { path, params }; }
+  }
+  const aliases = {
+    '/mudancas': '/changes', '/fontes': '/sources', '/orgaos': '/regulators',
+    '/obrigacoes': '/obligations', '/prazos': '/calendar', '/sobre': '/about',
+  };
+  return { path: aliases[pathname.replace(/\/$/, '')] || pathname, params };
+}
+
+function isPublicRoute(path) { return PUBLIC_ROUTES.has(path); }
+
+function publicRouteUrl(path, params) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== null && value !== '') query.set(key, value);
+  const id = query.get('id');
+  query.delete('id');
+  let target = path;
+  if (path === '/dashboard') target = '/';
+  else if (path === '/changes') target = id ? `/mudancas/${encodeURIComponent(id)}` : '/mudancas';
+  else if (path === '/sources') target = id ? `/fontes/${encodeURIComponent(id)}` : '/fontes';
+  else if (path === '/regulators') target = '/orgaos';
+  else if (path === '/obligations') target = id ? `/obrigacoes/${encodeURIComponent(id)}` : '/obrigacoes';
+  else if (path === '/schemas') target = id ? `/schemas/${encodeURIComponent(id)}` : '/schemas';
+  else if (path === '/calendar') target = '/prazos';
+  else if (path === '/about') target = '/sobre';
+  return `${target}${query.size ? `?${query.toString()}` : ''}`;
 }
 
 function navigate(path, params = {}) {
+  if (isPublicRoute(path)) {
+    const target = publicRouteUrl(path, params);
+    const historyObject = globalThis.history || globalThis.window?.history;
+    if (historyObject?.pushState && globalThis.location?.pathname !== undefined) {
+      const current = `${location.pathname || '/'}${location.search || ''}`;
+      if (current !== target) historyObject.pushState({}, '', target);
+      renderApp();
+      return;
+    }
+  }
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== null && value !== '') query.set(key, value);
   const next = `#${path}${query.size ? `?${query.toString()}` : ''}`;
@@ -227,28 +283,49 @@ function platformBanner(platform) {
 }
 
 function shellMarkup(route) {
+  if (isPublicRoute(route.path)) return publicShellMarkup(route);
+  return adminShellMarkup(route);
+}
+
+function publicShellMarkup(route) {
   const meta = PAGE_META[route.path] || PAGE_META['/dashboard'];
-  const nav = NAV_GROUPS.map((group) => `<section class="nav-group"><h2 class="nav-heading">${esc(group.title)}</h2>${group.items.map(([path, label, icon]) => {
-    const active = route.path === path || (path === '/impact' && route.path === '/impact') || (path === '/regulators' && route.path === '/regulators');
+  const links = [
+    ['/dashboard', 'Visão geral', '/'], ['/changes', 'Mudanças', '/mudancas'], ['/sources', 'Fontes oficiais', '/fontes'],
+    ['/regulators', 'Órgãos', '/orgaos'], ['/obligations', 'Obrigações', '/obrigacoes'], ['/schemas', 'Schemas', '/schemas'],
+    ['/calendar', 'Prazos', '/prazos'], ['/about', 'Sobre', '/sobre'],
+  ];
+  const nav = links.map(([path, label, href]) => `<a class="public-nav-link ${route.path === path ? 'active' : ''}" href="${href}" ${route.path === path ? 'aria-current="page"' : ''}>${esc(label)}</a>`).join('');
+  const toast = state.toast ? `<div class="toast ${esc(state.toast.type)}" role="status">${esc(state.toast.message)}</div>` : '';
+  return `<div class="public-shell">
+    <header class="public-header"><a class="public-brand" href="/" aria-label="LCF RegTech — visão geral"><span class="brand-mark">LCF</span><span><strong>LCF RegTech</strong><small>Regulatory Data Intelligence</small></span></a><nav class="public-nav" aria-label="Navegação principal">${nav}</nav><a class="header-consulting" href="${esc(lcfConsultingUrl('header'))}" target="_blank" rel="noopener noreferrer">by LCF Consulting ↗</a></header>
+    ${publicDataBanner(state.platform)}
+    <div class="public-route-context" aria-live="polite"><span>${esc(meta[0])}</span><span>${esc(meta[1])}</span></div>
+    <div id="page-content"><div class="loading-line"></div><main class="public-main"><p>Carregando informações vinculadas às fontes…</p></main></div>
+    <footer class="public-footer"><div><a class="footer-brand" href="/">LCF RegTech</a><span>Regulatory Data Intelligence · by LCF Consulting</span><p>Uma iniciativa de inteligência regulatória da LCF Consulting.</p></div><div class="footer-links"><a href="/sobre">Sobre o projeto</a><a href="${esc(lcfConsultingUrl('footer'))}" target="_blank" rel="noopener noreferrer">LCF Consulting ↗</a><a href="/#/admin">Admin / Operations</a></div><p class="legal-note">Conteúdo informativo, vinculado às fontes citadas. Não é filing oficial, parecer jurídico ou decisão automática de aplicabilidade.</p></footer>
+    ${toast}
+  </div>`;
+}
+
+function publicDataBanner(platform) {
+  if (!platform || platform.data_mode === 'UNREACHABLE') return '';
+  if (platform.database === 'postgresql' && Number(platform.snapshots || 0) > 0) {
+    return `<div class="public-status-strip live"><strong>LIVE</strong><span>Fontes oficiais monitoradas; capturas e mudanças são indicadas somente quando há evidência persistida.</span><a href="/fontes">Ver fontes</a></div>`;
+  }
+  if (platform.database === 'postgresql') return '<div class="public-status-strip"><strong>MONITORAMENTO LIVE</strong><span>Ainda não há snapshot bruto registrado nesta base. Nenhuma mudança é inventada.</span></div>';
+  if (platform.data_mode === 'DEMO_FIXTURES') return '<div class="public-status-strip"><strong>AMBIENTE DE DESENVOLVIMENTO</strong><span>Conteúdo sintético não é exibido como dado regulatório; captura verificada exige bytes e SHA-256 armazenados.</span></div>';
+  return '';
+}
+
+function adminShellMarkup(route) {
+  const meta = PAGE_META[route.path] || PAGE_META['/admin'];
+  const nav = ADMIN_NAV_GROUPS.map((group) => `<section class="nav-group"><h2 class="nav-heading">${esc(group.title)}</h2>${group.items.map(([path, label, icon]) => {
+    const active = route.path === path;
     return `<button class="nav-link ${active ? 'active' : ''}" type="button" data-route="${esc(path)}" aria-current="${active ? 'page' : 'false'}"><span class="nav-icon">${esc(icon)}</span><span class="nav-link-label">${esc(label)}</span></button>`;
   }).join('')}</section>`).join('');
   const toast = state.toast ? `<div class="toast ${esc(state.toast.type)}" role="status">${esc(state.toast.message)}</div>` : '';
-  return `<div class="app-shell">
-    <aside class="sidebar" aria-label="Primary navigation">
-      <div class="brand-block"><span class="brand-mark">LCF</span><div class="brand-copy"><div class="brand-name">Regulatory Data<br>Intelligence</div><div class="brand-subtitle">Compliance workspace</div></div></div>
-      <nav class="nav-scroll">${nav}</nav>
-      <div class="sidebar-footer"><div class="sidebar-status"><span class="status-dot"></span>${esc(platformLine(state.platform))}</div><div class="sidebar-version">${esc(platformVersion(state.platform))}</div></div>
-    </aside>
-    <div class="workspace">
-      <header class="topbar">
-        <div class="topbar-context"><strong>${esc(meta[0])}</strong><span>${esc(meta[1])}</span></div>
-        <form class="global-search" id="global-search-form" role="search"><span class="search-glyph" aria-hidden="true">⌕</span><input id="global-search-input" name="q" type="search" placeholder="Search regulations, fields, sources…" aria-label="Global search"><kbd class="kbd">Ctrl K</kbd></form>
-        <div class="topbar-right"><span class="top-pill">${esc(platformPill(state.platform))}</span></div>
-      </header>
-      ${platformBanner(state.platform)}
-      <div id="page-content"><div class="loading-line"></div><div class="page"><p class="page-subtitle">Loading workspace data…</p></div></div>
-    </div>
-    ${toast}
+  return `<div class="app-shell admin-shell">
+    <aside class="sidebar" aria-label="Admin / Operations navigation"><div class="brand-block"><a class="admin-brand-link" href="/" aria-label="LCF RegTech"><span class="brand-mark">LCF</span><span class="brand-copy"><span class="brand-name">LCF RegTech</span><span class="brand-subtitle">Admin / Operations</span></span></a></div><nav class="nav-scroll">${nav}</nav><div class="sidebar-footer"><div class="sidebar-status"><span class="status-dot"></span>${esc(platformLine(state.platform))}</div><div class="sidebar-version">${esc(platformVersion(state.platform))}</div></div></aside>
+    <div class="workspace"><header class="topbar"><div class="topbar-context"><strong>${esc(meta[0])}</strong><span>${esc(meta[1])}</span></div><form class="global-search" id="global-search-form" role="search"><span class="search-glyph" aria-hidden="true">⌕</span><input id="global-search-input" name="q" type="search" placeholder="Search internal reference records…" aria-label="Search internal workspace"><kbd class="kbd">Ctrl K</kbd></form><div class="topbar-right"><a class="button soft" href="/">Public workspace</a><span class="top-pill">${esc(platformPill(state.platform))}</span></div></header>${platformBanner(state.platform)}<div id="page-content"><div class="loading-line"></div><div class="page"><p class="page-subtitle">Loading internal workspace…</p></div></div></div>${toast}
   </div>`;
 }
 
@@ -261,35 +338,89 @@ async function renderApp() {
   const current = routeState();
   const renderId = ++state.renderId;
   if (!state.platform) await loadPlatform();
-  document.title = `${PAGE_META[current.path]?.[0] || 'Workspace'} · LCF Regulatory Data Intelligence`;
-  document.getElementById('app').innerHTML = shellMarkup(current);
+  const defaultSeo = seoForRoute(current);
+  state.pageSeo = { renderId, ...defaultSeo };
+  document.title = defaultSeo.title;
+  const appRoot = document.getElementById('app');
+  if (appRoot) appRoot.innerHTML = shellMarkup(current);
   try {
     const html = await renderRoute(current);
     if (renderId !== state.renderId) return;
     const target = document.getElementById('page-content');
     if (target) target.innerHTML = html;
+    const seo = state.pageSeo?.renderId === renderId ? state.pageSeo : defaultSeo;
+    applyPageSeo(seo);
   } catch (error) {
     if (renderId !== state.renderId) return;
     const target = document.getElementById('page-content');
-    if (target) target.innerHTML = `<main class="page">${pageHead('Workspace error', 'The request failed; existing data remains unchanged.')}<div class="alert danger"><strong>${esc(error.code || 'REQUEST_FAILED')}</strong> · ${esc(error.message || 'Unexpected error')}</div><button class="button" data-action="refresh">Retry request</button></main>`;
+    if (target) target.innerHTML = `<main class="${isPublicRoute(current.path) ? 'public-main' : 'page'}">${pageHead('Conteúdo indisponível', 'A solicitação falhou; os registros existentes não foram alterados.')}<div class="alert danger"><strong>${esc(error.code || 'REQUEST_FAILED')}</strong> · ${esc(error.message || 'Falha inesperada')}</div><button class="button" data-action="refresh">Tentar novamente</button></main>`;
+    applyPageSeo({ ...defaultSeo, robots: 'noindex,nofollow' });
+  }
+}
+
+function seoForRoute(route) {
+  const meta = PAGE_META[route.path] || PAGE_META['/dashboard'];
+  const routeParams = {};
+  for (const key of ['id']) if (route.params?.has(key)) routeParams[key] = route.params.get(key);
+  const href = publicRouteUrl(route.path, routeParams);
+  const origin = globalThis.location?.origin || '';
+  return {
+    title: route.path === '/dashboard' ? 'LCF RegTech — Regulatory Data Intelligence by LCF Consulting' : `${meta[0]} | LCF RegTech`,
+    description: meta[1], canonical: `${origin}${href.split('?')[0]}`,
+    robots: isPublicRoute(route.path) ? 'index,follow' : 'noindex,nofollow',
+  };
+}
+
+function setPageSeo(meta) {
+  state.pageSeo = { renderId: state.renderId, ...meta };
+}
+
+function applyPageSeo(meta) {
+  if (!meta) return;
+  document.title = meta.title || 'LCF RegTech — Regulatory Data Intelligence by LCF Consulting';
+  const head = document.head;
+  if (!head?.querySelector || !head?.appendChild) return;
+  const updateMeta = (selector, attribute, value, content) => {
+    let element = head.querySelector(selector);
+    if (!element) { element = document.createElement('meta'); element.setAttribute(attribute, value); head.appendChild(element); }
+    element.setAttribute('content', content || '');
+  };
+  updateMeta('meta[name="description"]', 'name', 'description', meta.description || 'Regulatory Data Intelligence by LCF Consulting.');
+  updateMeta('meta[name="robots"]', 'name', 'robots', meta.robots || 'index,follow');
+  updateMeta('meta[property="og:title"]', 'property', 'og:title', meta.title || 'LCF RegTech');
+  updateMeta('meta[property="og:description"]', 'property', 'og:description', meta.description || 'Regulatory Data Intelligence by LCF Consulting.');
+  updateMeta('meta[property="og:url"]', 'property', 'og:url', meta.canonical || globalThis.location?.href || '');
+  updateMeta('meta[property="og:type"]', 'property', 'og:type', meta.type === 'article' ? 'article' : 'website');
+  let canonical = head.querySelector('link[rel="canonical"]');
+  if (!canonical) { canonical = document.createElement('link'); canonical.setAttribute('rel', 'canonical'); head.appendChild(canonical); }
+  canonical.setAttribute('href', meta.canonical || globalThis.location?.href || '/');
+  const existingJsonLd = head.querySelector('#public-page-jsonld');
+  if (existingJsonLd) existingJsonLd.remove();
+  if (meta.structuredData) {
+    const script = document.createElement('script');
+    script.id = 'public-page-jsonld'; script.type = 'application/ld+json';
+    script.textContent = JSON.stringify(meta.structuredData);
+    head.appendChild(script);
   }
 }
 
 async function renderRoute(route) {
   switch (route.path) {
-    case '/dashboard': return renderDashboard();
-    case '/obligations': return renderObligations(route.params);
-    case '/sources': return route.params.get('id') ? renderSourceDetail(route.params.get('id')) : renderSources(route.params);
+    case '/dashboard': return renderPublicDashboard();
+    case '/obligations': return route.params.get('id') ? renderPublicObligationDetail(route.params.get('id')) : renderPublicObligations(route.params);
+    case '/sources': return route.params.get('id') ? renderPublicSourceDetail(route.params.get('id')) : renderPublicSources(route.params);
     case '/impact': return route.params.get('id') ? renderObligationDetail(route.params.get('id')) : renderImpactIndex();
-    case '/regulators': return route.params.get('regulator') ? renderRegulatorDetail(route.params.get('regulator')) : renderRegulators();
-    case '/changes': return renderChanges(route.params);
-    case '/schemas': return route.params.get('id') ? renderSchemaDetail(route.params.get('id')) : renderSchemas(route.params);
+    case '/regulators': return renderPublicRegulators(route.params);
+    case '/changes': return route.params.get('id') ? renderPublicChangeDetail(route.params.get('id')) : renderPublicChanges(route.params);
+    case '/schemas': return route.params.get('id') ? renderPublicSchemaDetail(route.params.get('id')) : renderPublicSchemas(route.params);
+    case '/about': return renderPublicAbout();
+    case '/admin': return renderAdminHome();
     case '/norm-diff': return renderNormDiff();
     case '/mapping': return renderMapping();
     case '/catalog': return renderCatalog(route.params);
     case '/lineage': return renderLineage(route.params);
     case '/dq': return renderDq();
-    case '/calendar': return renderCalendar();
+    case '/calendar': return renderPublicDeadlines();
     case '/submissions': return renderSubmissions();
     case '/controls': return renderControls();
     case '/evidence': return renderEvidence();
@@ -329,6 +460,249 @@ async function renderDashboard() {
   return `<main class="page">${pageHead('Regulatory data intelligence', 'A sourced, cross-regulator view from obligation to data, control and evidence.', `<a class="button primary" href="#/obligations">Browse obligation registry</a>`)}${cards}${provenance}
     <div class="dashboard-grid"><div>${panel('Recent sourced changes', changes || emptyState('No changes recorded', 'No source-backed changes have been added yet.'), { description: 'Technical impact is deterministic; it is not a legal severity rating.', action: '<a class="panel-link" href="#/changes">View change feed →</a>', flush: true })}${panel('Obligation inventory', table(['Authority','Obligation','Cadence','Mapped fields','Footprint'], obligations, 'No obligations match this view.'), { description: 'Footprint is an inventory heuristic, not legal materiality.', action: '<a class="panel-link" href="#/obligations">Open registry →</a>', flush: true })}</div>
     <div>${panel('Upcoming official deadlines', deadlines || emptyState('No upcoming deadlines', 'Source-backed official due dates appear here only when sustained by an official source; internal targets are shown separately in Calendar.'), { description: 'Regulatory due dates only. Internal targets are never merged into this list.', flush: true })}${panel('Ingestion & source health', ingestionPanel, { description: 'Real job observability: last run, counters and per-authority health.', action: '<a class="panel-link" href="#/system/jobs">Job runs →</a>', flush: true })}${panel('Coverage & trust', `<div class="status-list"><div class="status-item"><div><div class="status-name">Configured authorities</div><div class="status-detail">Multi-regulator registry</div></div><strong class="mono">${number(counts.regulator_count)} / 6</strong></div><div class="status-item"><div><div class="status-name">Structured field coverage</div><div class="status-detail">${number(counts.mapped_field_count)} of ${number(counts.field_count)} mapped fields</div></div><strong class="mono">${counts.field_count ? Math.round((counts.mapped_field_count/counts.field_count)*100) : 0}%</strong></div><div class="status-item"><div><div class="status-name">Raw regulatory snapshots</div><div class="status-detail">Original bytes stored immutably</div></div>${badge(number(counts.raw_snapshots), counts.raw_snapshots ? 'pass' : 'review')}</div><div class="status-item"><div><div class="status-name">Open ingestion errors</div><div class="status-detail">Visible and retryable where source-linked</div></div>${badge(number(counts.ingestion_error_count), counts.ingestion_error_count ? 'fail' : 'pass')}</div></div>`, { description: 'Metadata coverage; no client production estate is connected.' })}</div></div></main>`;
+}
+
+function lcfConsultingUrl(content = '') {
+  const url = new URL(LCF_CONSULTING_SITE);
+  url.searchParams.set('utm_source', 'regtech');
+  url.searchParams.set('utm_medium', 'product');
+  url.searchParams.set('utm_campaign', 'lcf_regtech');
+  if (content) url.searchParams.set('utm_content', content);
+  return url.toString();
+}
+
+function publicDate(value, includeTime = true) {
+  if (!value) return 'Data não disponível';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return String(value);
+  const options = includeTime
+    ? { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }
+    : { dateStyle: 'medium', timeZone: 'UTC' };
+  try { return `${new Intl.DateTimeFormat('pt-BR', options).format(date)}${includeTime ? ' UTC' : ''}`; }
+  catch { return date.toISOString(); }
+}
+
+function publicMeta(title, description, path, extra = {}) {
+  const origin = globalThis.location?.origin || '';
+  setPageSeo({ title, description, canonical: `${origin}${path}`, robots: 'index,follow', ...extra });
+}
+
+function consultingCta(title, body, button = 'FALAR COM A LCF CONSULTING', content = '') {
+  return `<section class="consulting-cta"><div><p class="eyebrow">LCF CONSULTING · PROJETOS CUSTOMIZADOS</p><h2>${esc(title)}</h2><p>${esc(body)}</p></div><a class="public-button primary" href="${esc(lcfConsultingUrl(content))}" target="_blank" rel="noopener noreferrer">${esc(button)} ↗</a></section>`;
+}
+
+function publicChangeCard(change) {
+  const authority = change.source?.authority || change.regulator?.acronym || change.source?.source_authority || 'Órgão não identificado';
+  const sourceTitle = change.source?.source_title || change.summary || 'Documento oficial';
+  const detected = change.public_category === 'DETECTED';
+  const status = !detected ? 'ALTERAÇÃO DOCUMENTADA'
+    : change.review_status === 'REVIEW_REQUIRED' ? 'REVISÃO NECESSÁRIA' : 'MUDANÇA DETECTADA';
+  const levelLabel = change.change_level === 'SOURCE_CHANGED' ? 'SOURCE_CHANGED · CONTEÚDO DA FONTE'
+    : change.change_level === 'REGULATORY_CHANGE_CANDIDATE' ? 'CANDIDATO · REVISÃO HUMANA NECESSÁRIA'
+      : change.change_level === 'REGULATORY_CHANGE_CONFIRMED' ? 'MUDANÇA REGULATÓRIA CONFIRMADA'
+        : 'REFERÊNCIA DOCUMENTAL';
+  const boundary = detected
+    ? 'O conteúdo da fonte oficial mudou. Isso não confirma, por si só, uma alteração regulatória.'
+    : 'Registro documental vinculado à fonte oficial; não representa captura de snapshots por esta instalação.';
+  const officialUrl = change.source?.source_url || change.source_url;
+  return `<article class="public-change-card"><div class="public-change-card-top"><div><span class="public-badge official">FONTE OFICIAL</span><span class="public-badge">${esc(authority)}</span><span class="public-badge ${change.change_level === 'SOURCE_CHANGED' || change.change_level === 'REGULATORY_CHANGE_CANDIDATE' ? 'warning' : 'neutral'}">${esc(levelLabel)}</span><h3><a href="/mudancas/${encodeURIComponent(change.id)}">${esc(sourceTitle)}</a></h3><p>${esc(change.change_type || 'ALTERAÇÃO DOCUMENTADA')} · ${esc(publicDate(change.detected_at))}</p></div><span class="public-badge ${detected && change.review_status === 'REVIEW_REQUIRED' ? 'warning' : 'neutral'}">${status}</span></div><p class="change-summary">${esc(change.summary || boundary)}</p><p class="source-boundary">${boundary}</p>${officialUrl ? extLink(officialUrl, 'Abrir fonte oficial') : ''}<div class="public-card-actions"><a class="public-button compact" href="/mudancas/${encodeURIComponent(change.id)}">Ver mudança e evidências</a></div></article>`;
+}
+
+function publicStatusLabel(overview) {
+  if (overview.data_mode === 'LIVE' && overview.raw_snapshots > 0) return '<span class="public-badge success">LIVE · CAPTURA VERIFICADA</span>';
+  if (overview.data_mode === 'LIVE') return '<span class="public-badge neutral">LIVE · AGUARDANDO CAPTURA</span>';
+  return '<span class="public-badge neutral">AMBIENTE DE DESENVOLVIMENTO</span>';
+}
+
+async function renderPublicDashboard() {
+  const overview = await api('/api/public/overview');
+  const recent = (overview.recent_changes || []).map(publicChangeCard).join('')
+    || `<div class="public-empty"><strong>Nenhuma alteração detectada nas fontes monitoradas no período.</strong><p>Uma verificação sem mudança não cria um registro de alteração. Detecções só aparecem quando vinculadas a snapshots reais.</p></div>`;
+  const authorities = (overview.authorities || []).map((authority) => `<article class="authority-card"><div class="authority-acronym">${esc(authority.acronym)}</div><div><strong>${esc(authority.name)}</strong><p>${number(authority.monitored_sources)} fonte(s) monitorada(s) · ${number(authority.verifications_30d)} verificação(ões) nos últimos 30 dias</p><small>${authority.last_verification_at ? `Última verificação ${esc(publicDate(authority.last_verification_at))}` : 'Nenhuma verificação registrada'}</small></div></article>`).join('')
+    || `<div class="public-empty"><strong>Nenhuma fonte monitorada configurada nesta base.</strong><p>Fontes e autoridades aparecem quando estão persistidas no registro oficial.</p></div>`;
+  const heroNote = overview.data_mode === 'LIVE'
+    ? `<div class="live-note">${publicStatusLabel(overview)}<span>${overview.raw_snapshots ? `${number(overview.raw_snapshots)} snapshot(s) imutáveis registrados` : 'Ainda não há snapshot bruto; não exibimos alterações sem evidência.'}</span></div>`
+    : `<div class="live-note">${publicStatusLabel(overview)}<span>Dados sintéticos são mantidos fora da experiência pública; capturas verificadas exigem bytes e SHA-256 armazenados.</span></div>`;
+  return `<main class="public-main">
+    <section class="public-hero"><p class="eyebrow">LCF REGTECH <span>·</span> REGULATORY DATA INTELLIGENCE</p><h1>O que mudou na regulação?</h1><p class="hero-lede">Saiba o que mudou nas fontes regulatórias oficiais — e onde essa mudança pode gerar impacto.</p><p class="hero-detail">Monitoramento contínuo de normas, manuais, layouts e documentos oficiais, com histórico de versões e evidências para análise regulatória e técnica.</p><div class="hero-actions"><a class="public-button primary" href="/mudancas">Ver mudanças recentes</a><a class="public-button" href="/fontes">Explorar fontes oficiais</a></div><p class="brand-byline">by <a href="${esc(lcfConsultingUrl('home'))}" target="_blank" rel="noopener noreferrer">LCF Consulting</a></p>${heroNote}</section>
+    <section class="public-section"><div class="section-heading"><div><p class="eyebrow">EVIDÊNCIA PÚBLICA</p><h2>Mudanças recentes</h2><p>Detecções vinculadas a snapshots. Mudança no conteúdo não significa automaticamente mudança de regra.</p></div><a class="text-link" href="/mudancas">Ver histórico completo →</a></div><div class="public-change-list">${recent}</div></section>
+    <section class="public-section"><div class="section-heading"><div><p class="eyebrow">COBERTURA</p><h2>Órgãos e fontes oficiais</h2><p>A cobertura apresentada reflete o que está persistido no registro; não implica cobertura normativa completa.</p></div><a class="text-link" href="/orgaos">Explorar órgãos →</a></div><div class="authority-grid">${authorities}</div></section>
+    <section class="public-section"><div class="section-heading"><div><p class="eyebrow">MÉTODO</p><h2>Da fonte à evidência</h2><p>Capturas, versões e comparações ficam ligadas à fonte original e à análise humana.</p></div></div><ol class="process-flow"><li><span>01</span><strong>Fonte oficial</strong></li><li><span>02</span><strong>Captura</strong></li><li><span>03</span><strong>Snapshot</strong></li><li><span>04</span><strong>Comparação</strong></li><li><span>05</span><strong>Mudança</strong></li><li><span>06</span><strong>Análise</strong></li></ol></section>
+    <section class="public-section"><div class="section-heading"><div><p class="eyebrow">STATUS DAS EVIDÊNCIAS</p><h2>Monitoramento verificável</h2></div></div><div class="public-metrics"><div><span>Fontes oficiais monitoradas</span><strong>${number(overview.sources_monitored)}</strong></div><div><span>Verificações · 30 dias</span><strong>${number(overview.verification_checks_30d)}</strong></div><div><span>Fontes com captura verificada</span><strong>${number(overview.verified_capture_sources)}</strong></div><div><span>Mudanças aguardando revisão</span><strong>${number(overview.pending_review)}</strong></div></div></section>
+    ${consultingCta('Sua organização precisa saber não apenas o que mudou, mas onde a mudança atinge processos, dados e sistemas?', 'A LCF Consulting aplica inteligência regulatória ao contexto específico da organização: obrigações, processos, sistemas, datasets, pipelines e controles.', 'SOLICITAR ANÁLISE DE IMPACTO', 'home')}
+  </main>`;
+}
+
+async function renderPublicChanges(params = new URLSearchParams()) {
+  const query = new URLSearchParams(params);
+  if (!query.has('period')) query.set('period', '30d');
+  const [data, regulators, sources] = await Promise.all([
+    api(`/api/public/changes?${query.toString()}`), api('/api/public/regulators'), api('/api/public/sources'),
+  ]);
+  const detected = data.changes.filter((change) => change.public_category === 'DETECTED');
+  const documented = data.changes.filter((change) => change.public_category === 'DOCUMENTED');
+  const authorityOptions = regulators.map((r) => `<option value="${esc(r.acronym)}" ${query.get('authority')?.toLowerCase() === r.acronym.toLowerCase() ? 'selected' : ''}>${esc(r.acronym)} · ${esc(r.name)}</option>`).join('');
+  const sourceTypes = [...new Set(sources.map((source) => source.source_type).filter(Boolean))].sort();
+  const typeOptions = sourceTypes.map((type) => `<option value="${esc(type)}" ${query.get('source_type') === type ? 'selected' : ''}>${esc(type)}</option>`).join('');
+  const filters = `<form class="public-filters" data-form="public-change-filter"><label>Órgão<select name="authority"><option value="">Todos os órgãos</option>${authorityOptions}</select></label><label>Período<select name="period">${[['7d','7 dias'],['30d','30 dias'],['90d','90 dias'],['all','Todo o histórico']].map(([value,label]) => `<option value="${value}" ${(query.get('period') || '30d') === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label>Tipo de fonte<select name="source_type"><option value="">Todos os tipos</option>${typeOptions}</select></label><label>Registro<select name="kind"><option value="">Todos</option><option value="DETECTED" ${query.get('kind') === 'DETECTED' ? 'selected' : ''}>Detecção por snapshot</option><option value="DOCUMENTED" ${query.get('kind') === 'DOCUMENTED' ? 'selected' : ''}>Alteração documentada</option></select></label><label>Status<select name="status"><option value="">Todos</option><option value="REVIEW_REQUIRED" ${query.get('status') === 'REVIEW_REQUIRED' ? 'selected' : ''}>Revisão necessária</option><option value="ANALYZED" ${query.get('status') === 'ANALYZED' ? 'selected' : ''}>Analisada</option></select></label><label>Revisão necessária<select name="review_required"><option value="">Todas</option><option value="true" ${query.get('review_required') === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${query.get('review_required') === 'false' ? 'selected' : ''}>Não</option></select></label><button class="public-button primary" type="submit">Aplicar filtros</button><a class="public-button" href="/mudancas">Limpar</a></form>`;
+  const detectedMarkup = detected.map(publicChangeCard).join('') || `<div class="public-empty"><strong>Nenhuma alteração detectada nas fontes monitoradas no período.</strong><p>Alterações catalogadas a partir de histórico oficial aparecem separadamente e não são apresentadas como capturas recentes.</p></div>`;
+  const documentedMarkup = documented.map(publicChangeCard).join('') || `<div class="public-empty"><strong>Nenhuma referência documental corresponde aos filtros.</strong></div>`;
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · O QUE MUDOU</p><h1>Mudanças em fontes regulatórias oficiais</h1><p>Uma alteração de conteúdo na fonte oficial não é automaticamente uma alteração de regra regulatória. Detecções por snapshot e referências documentais ficam claramente separadas.</p></header>${filters}<section class="public-section"><div class="section-heading"><div><p class="eyebrow">CAPTURA COMPARÁVEL</p><h2>Mudanças detectadas</h2></div><span class="count-pill">${number(detected.length)} registro(s)</span></div><div class="public-change-list">${detectedMarkup}</div></section><section class="public-section"><div class="section-heading"><div><p class="eyebrow">REFERÊNCIAS HISTÓRICAS</p><h2>Alterações documentadas em fontes oficiais</h2><p>Registros de catálogo vinculados à fonte, sem snapshots anterior e atual capturados por esta instalação.</p></div><span class="count-pill">${number(documented.length)} registro(s)</span></div><div class="public-change-list">${documentedMarkup}</div></section>${consultingCta('Essa mudança pode afetar sua operação?', 'A LCF transforma mudanças regulatórias em análise sobre processos, dados, sistemas e controles da sua organização.', 'SOLICITAR ANÁLISE DE IMPACTO', 'changes')}</main>`;
+}
+
+async function renderPublicChangeDetail(id) {
+  const change = await api(`/api/public/changes/${encodeURIComponent(id)}`);
+  const source = change.source || {};
+  const authority = source.authority || change.regulator?.acronym || source.source_authority || 'Fonte oficial';
+  const sourceTitle = source.source_title || change.summary || 'Documento oficial';
+  const title = `${sourceTitle} — ${change.public_category === 'DETECTED' ? 'mudança detectada' : 'alteração documentada'} | ${authority} | LCF RegTech`;
+  const description = String(change.summary || 'Registro público vinculado a uma fonte oficial.').slice(0, 300);
+  const origin = globalThis.location?.origin || '';
+  publicMeta(title, description, `/mudancas/${encodeURIComponent(id)}`, { type: 'article', structuredData: { '@context': 'https://schema.org', '@type': 'WebPage', name: title, description, url: `${origin}/mudancas/${encodeURIComponent(id)}`, dateModified: change.detected_at, isPartOf: { '@type': 'WebSite', name: 'LCF RegTech', url: `${origin}/` } } });
+  const previous = change.snapshots?.previous;
+  const current = change.snapshots?.current;
+  const hasPair = Boolean(previous && current);
+  const text = (snapshot) => {
+    if (!snapshot?.extracted_text) return '';
+    const excerpt = String(snapshot.extracted_text).slice(0, 5000);
+    return `${excerpt}${snapshot.extracted_text_truncated ? '\n\n[Excerto limitado a 5.000 caracteres; use o link para baixar os bytes completos.]' : ''}`;
+  };
+  const detected = change.public_category === 'DETECTED';
+  const boundary = detected
+    ? 'SOURCE_CHANGED significa que o conteúdo da fonte oficial mudou. Isso não confirma, por si só, uma alteração de regra regulatória, obrigação ou aplicabilidade.'
+    : 'Esta referência é documentada a partir do histórico ou do conteúdo citado na fonte oficial; não é uma detecção de snapshots capturados nesta instalação.';
+  let diffMarkup;
+  if (change.text_diff?.available === false) diffMarkup = `<div class="public-notice">${esc(change.text_diff.reason)}</div>`;
+  else if (change.text_diff) diffMarkup = `<div class="diff-columns"><section><h3>Trechos removidos</h3><ul class="diff-list removed">${change.text_diff.removed.map((line) => `<li>${esc(line)}</li>`).join('') || '<li>Nenhuma linha removida.</li>'}</ul></section><section><h3>Trechos adicionados</h3><ul class="diff-list added">${change.text_diff.added.map((line) => `<li>${esc(line)}</li>`).join('') || '<li>Nenhuma linha adicionada.</li>'}</ul></section></div><p class="source-boundary">Comparação lexical; não constitui interpretação jurídica.</p>`;
+  else diffMarkup = `<div class="public-notice">${detected ? 'O documento mudou, mas o significado regulatório desta alteração ainda requer revisão.' : 'Snapshots anterior e atual não estão armazenados para este registro. O histórico citado na fonte não foi convertido em capturas retroativas.'}</div>`;
+  const beforeAfter = hasPair && (text(previous) || text(current)) ? `<div class="diff-columns"><section class="text-version"><h3>ANTES · ${esc(publicDate(previous.collected_at))}</h3><pre>${esc(text(previous) || 'Texto anterior não extraído pelo parser.')}</pre></section><section class="text-version"><h3>DEPOIS · ${esc(publicDate(current.collected_at))}</h3><pre>${esc(text(current) || 'Texto atual não extraído pelo parser.')}</pre></section></div>` : '';
+  const snapshots = [['Snapshot anterior', previous], ['Snapshot atual', current]].filter(([, snap]) => snap).map(([label, snap]) => `<article class="evidence-item"><strong>${label}</strong><span>Capturado ${esc(publicDate(snap.collected_at))}</span><code>SHA-256 ${esc(snap.content_hash || 'NÃO DISPONÍVEL')}</code><span>${esc(snap.mime_type || 'MIME não informado')} · ${snap.content_size == null ? 'Tamanho não informado' : `${number(snap.content_size)} bytes`}</span><span>Parser ${esc(snap.parser || 'não informado')} · ${esc(snap.parse_status || 'status não informado')} · HTTP ${esc(String(snap.http_status ?? '—'))}</span><span>Snapshot ${esc(snap.id)}</span><a href="/api/sources/${encodeURIComponent(snap.source_id)}/snapshots/${encodeURIComponent(snap.id)}/content">Baixar bytes capturados</a></article>`).join('');
+  const impacts = change.impacts?.length ? `<ul class="impact-list">${change.impacts.map((impact) => `<li><strong>${esc(impact.impact_type)} · ${esc(impact.severity)}</strong><span>${esc(impact.description)}</span><small>${esc(impact.rationale)}</small></li>`).join('')}</ul><p class="source-boundary">${esc(change.impact_notice || 'Triagem técnica registrada; não é classificação jurídica.')}</p>` : '<div class="public-empty">Impacto específico ainda não classificado.</div>';
+  const obligations = change.related_obligations?.length ? `<ul>${change.related_obligations.map((item) => `<li><a href="/obrigacoes/${encodeURIComponent(item.id)}">${esc(item.regulator_acronym || '')} · ${esc(item.code)} — ${esc(item.title)}</a></li>`).join('')}</ul>` : '<p>Não há obrigação diretamente relacionada registrada no modelo.</p>';
+  const fields = change.fields?.length ? `<div class="table-wrap"><table><thead><tr><th>Campo catalogado</th><th>Tipo</th><th>Obrigatoriedade</th><th>Referência</th></tr></thead><tbody>${change.fields.map((field) => `<tr><td>${esc(field.path)} · ${esc(field.name)}</td><td>${esc(field.data_type)}</td><td>${field.required == null ? 'Não classificado' : field.required ? 'Obrigatório' : 'Opcional'}</td><td>${esc(field.source_reference)}</td></tr>`).join('')}</tbody></table></div><p class="source-boundary">Escopo catalogado: ${esc(change.schema?.field_inventory_scope || 'não informado')}; não representa schema completo quando a cobertura é parcial.</p>` : '<p>Impacto específico ainda não classificado. Nenhum campo relacionado está catalogado para este registro.</p>';
+  const documentedValues = change.public_category === 'DOCUMENTED' ? `${change.old_value ? `<section><h3>Registro anterior citado</h3><pre class="evidence-pre">${esc(change.old_value)}</pre></section>` : ''}${change.new_value ? `<section><h3>Registro atual citado</h3><pre class="evidence-pre">${esc(change.new_value)}</pre></section>` : ''}` : '';
+  const status = detected && change.review_status === 'REVIEW_REQUIRED' ? 'REVISÃO NECESSÁRIA' : detected ? 'MUDANÇA DETECTADA' : 'ALTERAÇÃO DOCUMENTADA';
+  const levelLabel = change.change_level === 'SOURCE_CHANGED' ? 'SOURCE_CHANGED · CONTEÚDO DA FONTE'
+    : change.change_level === 'REGULATORY_CHANGE_CANDIDATE' ? 'CANDIDATO · REVISÃO HUMANA NECESSÁRIA'
+      : change.change_level === 'REGULATORY_CHANGE_CONFIRMED' ? 'MUDANÇA REGULATÓRIA CONFIRMADA'
+        : 'REFERÊNCIA DOCUMENTAL';
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">O QUE MUDOU · ${detected ? 'DETECÇÃO DE FONTE' : 'REFERÊNCIA DOCUMENTAL'}</p><h1>${esc(sourceTitle)}</h1><p>${esc(source.source_authority || change.regulator?.name || 'Órgão não identificado')} · ${esc(publicDate(change.detected_at))}</p><div class="change-detail-status"><span class="public-badge official">FONTE OFICIAL</span><span class="public-badge ${change.public_status === 'REVIEW_REQUIRED' ? 'warning' : 'neutral'}">${status}</span><span class="public-badge ${change.change_level === 'SOURCE_CHANGED' || change.change_level === 'REGULATORY_CHANGE_CANDIDATE' ? 'warning' : 'neutral'}">${esc(levelLabel)}</span><span class="public-badge">${esc(change.change_type)}</span></div></header>
+    <section class="public-section"><p class="eyebrow">RESUMO DO REGISTRO</p><p class="detail-lede">${esc(change.summary)}</p><p>${boundary}</p>${change.diff_summary ? `<p class="source-boundary">${esc(change.diff_summary)}</p>` : ''}</section>
+    <section class="public-section"><p class="eyebrow">COMPARAÇÃO</p><h2>Antes e depois</h2>${beforeAfter}${diffMarkup}${documentedValues}</section>
+    <section class="public-section"><p class="eyebrow">POSSÍVEL IMPACTO</p><h2>Informações relacionadas no modelo</h2><h3>Obrigações relacionadas</h3>${obligations}<h3>Campos catalogados</h3>${fields}<h3>Triagem técnica</h3>${impacts}</section>
+    <section class="public-section"><p class="eyebrow">EVIDÊNCIA</p><h2>Proveniência da captura</h2><article class="evidence-item"><strong>${esc(source.source_title || change.source_reference || 'Fonte oficial')}</strong><span>Autoridade: ${esc(authority)} · Tipo: ${esc(source.source_type || 'não informado')}</span>${source.source_url ? `<a href="${esc(safeHref(source.source_url))}" target="_blank" rel="noopener noreferrer">${esc(source.source_url)} ↗</a>` : '<span>URL oficial não disponível</span>'}<span>Referência: ${esc(change.source_reference || 'não disponível')}</span></article>${snapshots ? `<div class="evidence-grid">${snapshots}</div>` : '<div class="public-empty">Nenhum snapshot anterior/atual está vinculado. Hash de excerto, se existir, não é hash dos bytes originais.</div>'}</section>
+    ${consultingCta('Essa mudança pode afetar sua operação?', 'A LCF transforma mudanças regulatórias em análise sobre processos, dados, sistemas e controles da sua organização.', 'SOLICITAR ANÁLISE DE IMPACTO', `change-${id}`)}</main>`;
+}
+
+async function renderPublicSources(params = new URLSearchParams()) {
+  const query = new URLSearchParams(params);
+  const [sources, regulators] = await Promise.all([
+    api(`/api/public/sources${query.size ? `?${query.toString()}` : ''}`), api('/api/public/regulators'),
+  ]);
+  const authorities = regulators.map((r) => `<option value="${esc(r.acronym)}" ${query.get('authority')?.toLowerCase() === r.acronym.toLowerCase() ? 'selected' : ''}>${esc(r.acronym)} · ${esc(r.name)}</option>`).join('');
+  const types = [...new Set(sources.map((row) => row.source_type).filter(Boolean))].sort();
+  const typeOptions = types.map((type) => `<option value="${esc(type)}" ${query.get('source_type') === type ? 'selected' : ''}>${esc(type)}</option>`).join('');
+  const cards = sources.map((source) => {
+    const captured = source.content_hash_scope === 'RAW_RESPONSE_SHA256' && source.raw_snapshot_count > 0;
+    return `<article class="public-source-card"><div class="public-change-card-top"><div><span class="public-badge official">FONTE OFICIAL</span><span class="public-badge">${esc(source.regulator_acronym)}</span><h2><a href="/fontes/${encodeURIComponent(source.id)}">${esc(source.source_title)}</a></h2><p>${esc(source.source_type)} · ${esc(source.authority)}</p></div>${captured ? '<span class="public-badge success">CAPTURA VERIFICADA</span>' : '<span class="public-badge neutral">SEM SNAPSHOT BRUTO</span>'}</div><p class="source-url-text">${extLink(source.source_url, 'Abrir URL oficial')}</p><div class="fact-row"><span>Última verificação: ${esc(source.last_checked_at ? publicDate(source.last_checked_at) : 'não registrada')}</span><span>${number(source.raw_snapshot_count)} snapshot(s)</span><span>${source.last_http_status ? `HTTP ${esc(String(source.last_http_status))}` : 'HTTP não verificado'}</span></div><a class="text-link" href="/fontes/${encodeURIComponent(source.id)}">Ver histórico e evidências →</a></article>`;
+  }).join('');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · FONTES OFICIAIS</p><h1>Fontes regulatórias oficiais</h1><p>Catálogo de URLs primárias e seus estados reais de verificação. Uma fonte cadastrada não significa que bytes já tenham sido capturados.</p></header><form class="public-filters" data-form="public-source-filter"><label>Órgão<select name="authority"><option value="">Todos os órgãos</option>${authorities}</select></label><label>Tipo de fonte<select name="source_type"><option value="">Todos os tipos</option>${typeOptions}</select></label><button class="public-button primary" type="submit">Aplicar filtros</button><a class="public-button" href="/fontes">Limpar</a></form><div class="public-source-list">${cards || '<div class="public-empty"><strong>Nenhuma fonte oficial corresponde aos filtros.</strong></div>'}</div>${consultingCta('Precisa monitorar fontes específicas da sua organização?', 'A LCF Consulting estrutura monitoramento, governança e trilhas de evidência conforme as fontes e os processos relevantes para cada organização.', 'FALAR COM A LCF CONSULTING', 'sources')}</main>`;
+}
+
+async function renderPublicSourceDetail(id) {
+  const detail = await api(`/api/public/sources/${encodeURIComponent(id)}`);
+  const source = detail.source;
+  const captured = source.content_hash_scope === 'RAW_RESPONSE_SHA256' && detail.snapshots.length > 0;
+  publicMeta(`${source.source_title} | Fonte oficial | LCF RegTech`, `Fonte oficial ${source.authority}: link primário, histórico de verificações e snapshots reais quando capturados.`, `/fontes/${encodeURIComponent(id)}`, { robots: 'noindex,follow', type: 'article' });
+  const snapshots = detail.snapshots.map((snapshot) => `<article class="evidence-item"><strong>${esc(publicDate(snapshot.collected_at))}</strong><code>SHA-256 ${esc(snapshot.content_hash)}</code><span>${esc(snapshot.mime_type || 'MIME não informado')} · ${number(snapshot.content_size)} bytes · HTTP ${esc(String(snapshot.http_status ?? '—'))}</span><span>Parser ${esc(snapshot.parser || 'não informado')} · ${esc(snapshot.parse_status)}</span>${snapshot.diff_summary ? `<span>${esc(snapshot.diff_summary)}</span>` : ''}<span>Snapshot ${esc(snapshot.id)}</span><a href="/api/sources/${encodeURIComponent(source.id)}/snapshots/${encodeURIComponent(snapshot.id)}/content">Baixar bytes capturados</a></article>`).join('');
+  const checks = detail.checks.map((check) => `<tr><td>${esc(publicDate(check.checked_at))}</td><td>HTTP ${esc(String(check.http_status ?? '—'))}</td><td>${badge(check.outcome)}</td><td>${esc(check.content_hash || '—')}</td></tr>`);
+  const changes = detail.changes.map((change) => {
+    const level = change.change_level === 'SOURCE_CHANGED' ? 'SOURCE_CHANGED · CONTEÚDO DA FONTE'
+      : change.change_level === 'REGULATORY_CHANGE_CANDIDATE' ? 'CANDIDATO · REVISÃO HUMANA NECESSÁRIA'
+        : change.change_level === 'REGULATORY_CHANGE_CONFIRMED' ? 'MUDANÇA REGULATÓRIA CONFIRMADA'
+          : 'REFERÊNCIA DOCUMENTAL';
+    const status = change.public_category === 'DOCUMENTED' ? 'ALTERAÇÃO DOCUMENTADA'
+      : change.review_status === 'REVIEW_REQUIRED' ? 'REVISÃO NECESSÁRIA' : 'MUDANÇA DETECTADA';
+    return `<article class="public-source-card"><span class="public-badge ${change.public_category === 'DETECTED' ? 'warning' : 'neutral'}">${esc(level)}</span><span class="public-badge">${status}</span><h3><a href="/mudancas/${encodeURIComponent(change.id)}">${esc(change.summary)}</a></h3><p>${esc(publicDate(change.detected_at))}</p></article>`;
+  }).join('');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">FONTE OFICIAL · ${esc(source.regulator_acronym || source.authority)}</p><h1>${esc(source.source_title)}</h1><p>${esc(source.source_authority)} · ${esc(source.source_type)}</p><div class="change-detail-status"><span class="public-badge official">FONTE OFICIAL</span>${captured ? '<span class="public-badge success">CAPTURA VERIFICADA</span>' : '<span class="public-badge neutral">SEM SNAPSHOT BRUTO</span>'}</div><a href="${esc(safeHref(source.source_url))}" target="_blank" rel="noopener noreferrer" class="public-button">Abrir fonte oficial ↗</a></header><section class="public-section"><h2>Status de captura</h2><div class="evidence-item"><strong>${captured ? 'VERIFIED CAPTURE' : 'CAPTURA NÃO DISPONÍVEL'}</strong><span>${esc(detail.hash_notice)}</span><span>Última verificação ${esc(source.last_checked_at ? publicDate(source.last_checked_at) : 'não registrada')}</span><span>HTTP ${esc(String(source.last_http_status ?? 'não disponível'))} · ETag ${esc(source.etag || 'não informado')} · Last-Modified ${esc(source.last_modified || 'não informado')}</span></div></section><section class="public-section"><h2>Histórico imutável de snapshots</h2>${snapshots ? `<div class="evidence-grid">${snapshots}</div>` : '<div class="public-empty">Nenhum snapshot bruto foi capturado para esta fonte. Não há hash dos bytes originais para apresentar.</div>'}</section><section class="public-section"><h2>Verificações da fonte</h2>${checks.length ? table(['Verificado em','Resposta','Resultado','SHA-256'], checks, 'Nenhuma verificação registrada.') : '<div class="public-empty">Nenhuma verificação está registrada para esta fonte.</div>'}</section><section class="public-section"><h2>Mudanças vinculadas</h2><div class="public-source-list">${changes || '<div class="public-empty">Nenhuma mudança pública vinculada a esta fonte.</div>'}</div></section></main>`;
+}
+
+async function renderPublicRegulators(params = new URLSearchParams()) {
+  const regulators = await api('/api/public/regulators');
+  const selected = params.get('regulator');
+  if (selected) {
+    const regulator = regulators.find((row) => row.id === selected || row.acronym.toLowerCase() === selected.toLowerCase());
+    if (!regulator) throw new Error(`O órgão ${selected} não foi encontrado.`);
+    const [sources, obligations] = await Promise.all([
+      api(`/api/public/sources?authority=${encodeURIComponent(regulator.acronym)}`),
+      api(`/api/public/obligations?regulator=${encodeURIComponent(regulator.id)}`),
+    ]);
+    publicMeta(`${regulator.acronym} — fontes e obrigações | LCF RegTech`, `Fontes oficiais e obrigações catalogadas para ${regulator.name}.`, '/orgaos', { robots: 'noindex,follow' });
+    const sourceCards = sources.map((source) => `<article class="public-source-card"><span class="public-badge official">FONTE OFICIAL</span><h3><a href="/fontes/${encodeURIComponent(source.id)}">${esc(source.source_title)}</a></h3><p>${esc(source.source_type)} · ${source.raw_snapshot_count ? 'CAPTURA VERIFICADA' : 'sem snapshot bruto'}</p></article>`).join('');
+    const obligationCards = obligations.map((item) => `<article class="public-source-card"><h3><a href="/obrigacoes/${encodeURIComponent(item.id)}">${esc(item.code)} · ${esc(item.title)}</a></h3><p>${esc(item.category)} · ${esc(item.frequency)}</p></article>`).join('');
+    return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">ÓRGÃO MONITORADO · ${esc(regulator.acronym)}</p><h1>${esc(regulator.name)}</h1><p>${esc(regulator.sector)} · ${esc(regulator.jurisdiction)}</p>${extLink(regulator.website, 'Site oficial do órgão')}</header><section class="public-section"><h2>Fontes oficiais</h2><div class="public-source-list">${sourceCards || '<div class="public-empty">Nenhuma fonte cadastrada para este órgão.</div>'}</div></section><section class="public-section"><h2>Obrigações catalogadas</h2><div class="public-source-list">${obligationCards || '<div class="public-empty">Nenhuma obrigação pública catalogada.</div>'}</div></section><a class="public-button" href="/orgaos">Todos os órgãos</a></main>`;
+  }
+  publicMeta('Órgãos regulatórios monitorados | LCF RegTech', 'Autoridades regulatórias e fontes oficiais presentes no registro do LCF RegTech.', '/orgaos');
+  const cards = regulators.map((row) => `<article class="authority-card"><div class="authority-acronym">${esc(row.acronym)}</div><div><h2><a href="/orgaos?regulator=${encodeURIComponent(row.id)}">${esc(row.name)}</a></h2><p>${esc(row.sector)} · ${esc(row.jurisdiction)}</p><small>${number(row.monitored_source_count)} fonte(s) monitorada(s) · ${number(row.obligation_count)} obrigação(ões) catalogada(s)</small><p>${extLink(row.website, 'Site oficial')}</p></div></article>`).join('');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · ÓRGÃOS</p><h1>Órgãos e autoridades regulatórias</h1><p>A cobertura reflete as fontes persistidas no registro; não implica cobertura normativa completa.</p></header><div class="authority-grid">${cards || '<div class="public-empty">Nenhum órgão cadastrado nesta base.</div>'}</div></main>`;
+}
+
+async function renderPublicObligations(params = new URLSearchParams()) {
+  const query = new URLSearchParams(params);
+  const [obligations, regulators] = await Promise.all([
+    api(`/api/public/obligations${query.size ? `?${query.toString()}` : ''}`), api('/api/public/regulators'),
+  ]);
+  const options = regulators.map((row) => `<option value="${esc(row.id)}" ${query.get('regulator') === row.id ? 'selected' : ''}>${esc(row.acronym)} · ${esc(row.name)}</option>`).join('');
+  const rows = obligations.map((row) => `<article class="public-source-card"><span class="public-badge official">${esc(row.regulator_acronym)} · SOURCE-LINKED</span><h2><a href="/obrigacoes/${encodeURIComponent(row.id)}">${esc(row.code)} · ${esc(row.title)}</a></h2><p>${esc(row.description)}</p><div class="fact-row"><span>${esc(row.category)}</span><span>${esc(row.frequency || 'Frequência não informada')}</span><span>${row.next_official_deadline ? `Próximo prazo oficial ${esc(row.next_official_deadline)}` : 'Prazo oficial não disponível'}</span></div><a class="text-link" href="/obrigacoes/${encodeURIComponent(row.id)}">Ver fontes, requisitos e evidências →</a></article>`).join('');
+  publicMeta('Obrigações regulatórias catalogadas | LCF RegTech', 'Consulte obrigações regulatórias catalogadas e suas fontes oficiais, prazos e escopo documentado.', '/obrigacoes');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · OBRIGAÇÕES</p><h1>Obrigações regulatórias catalogadas</h1><p>Registros vinculados a fontes oficiais. A listagem não determina aplicabilidade a uma organização específica.</p></header><form class="public-filters" data-form="public-obligation-filter"><label>Órgão<select name="regulator"><option value="">Todos os órgãos</option>${options}</select></label><label>Pesquisar<input class="input" type="search" name="q" value="${esc(query.get('q') || '')}" placeholder="Código, obrigação ou tema"></label><button class="public-button primary" type="submit">Aplicar filtros</button><a class="public-button" href="/obrigacoes">Limpar</a></form><div class="public-source-list">${rows || '<div class="public-empty">Nenhuma obrigação pública corresponde aos filtros.</div>'}</div>${consultingCta('Precisa entender quais obrigações alcançam a sua organização?', 'A aplicabilidade depende do contexto da empresa. A LCF Consulting liga norma, obrigação, processo, dados, sistemas e controles.', 'FALAR COM A LCF CONSULTING', 'obligations')}</main>`;
+}
+
+async function renderPublicObligationDetail(id) {
+  const detail = await api(`/api/public/obligations/${encodeURIComponent(id)}`);
+  const o = detail.obligation;
+  publicMeta(`${o.code} — ${o.title} | ${o.regulator_acronym} | LCF RegTech`, String(o.description || '').slice(0, 300), `/obrigacoes/${encodeURIComponent(id)}`, { type: 'article' });
+  const requirements = detail.requirements.map((row) => `<article class="public-source-card"><h3>${esc(row.requirement_type)}</h3><p>${esc(row.description)}</p><p class="source-boundary">${esc(row.source_reference)}</p>${row.source_url ? extLink(row.source_url, 'Ver fonte oficial') : ''}</article>`).join('');
+  const docs = detail.documents.map((doc) => `<article class="public-source-card"><h3>${esc(doc.code)} · ${esc(doc.name)}</h3><p>${esc(doc.document_type)} · ${esc(doc.output_format || 'Formato não informado')} · ${esc(doc.frequency || 'Frequência não informada')}</p>${doc.schema_version_id ? `<a href="/schemas/${encodeURIComponent(doc.schema_version_id)}">Schema ${esc(doc.version || '')} · ${esc(doc.parse_status || '')} →</a>` : '<p>Schema técnico não catalogado.</p>'}</article>`).join('');
+  const fields = detail.fields.map((field) => `<tr><td>${esc(field.path)}</td><td>${esc(field.name)}</td><td>${esc(field.data_type)}</td><td>${field.required == null ? 'Não classificado' : field.required ? 'Obrigatório' : 'Opcional'}</td><td>${esc(field.source_reference)}</td></tr>`);
+  const deadlines = detail.deadlines.map((item) => `<article class="evidence-item"><strong>${esc(item.reference_period)} · ${esc(item.due_date)}</strong><span>${esc(item.calculation_basis || 'Base não informada')}</span>${item.source_url ? extLink(item.source_url, 'Fonte oficial do prazo') : '<span>Fonte oficial não disponível</span>'}</article>`).join('');
+  const sources = detail.sources.map((source) => `<article class="evidence-item"><strong>${esc(source.source_title)}</strong><span>${esc(source.source_authority)} · ${esc(source.source_type)} · ${esc(source.version || 'versão não informada')}</span>${extLink(source.source_url, 'Abrir fonte oficial')}<span>${source.raw_snapshot_count ? 'CAPTURA VERIFICADA' : `Sem snapshot bruto · ${esc(source.content_hash_scope || 'hash de bytes não disponível')}`}</span></article>`).join('');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">${esc(o.regulator_acronym)} · OBRIGAÇÃO SOURCE-LINKED</p><h1>${esc(o.title)}</h1><p>${esc(o.code)} · ${esc(o.regulation_number)} · ${esc(o.regulation_title)}</p>${o.regulation_source_url ? extLink(o.regulation_source_url, 'Abrir fonte normativa') : ''}</header><div class="fact-grid"><div><span>Órgão</span><strong>${esc(o.regulator_name)} (${esc(o.regulator_acronym)})</strong></div><div><span>Categoria</span><strong>${esc(o.category)}</strong></div><div><span>Periodicidade</span><strong>${esc(o.frequency || 'Não informada')}</strong></div><div><span>Entidades afetadas</span><strong>${esc(o.affected_entities || 'Não classificado')}</strong></div><div><span>Formato declarado</span><strong>${esc(o.output_format || 'Não informado')}</strong></div><div><span>Vigência</span><strong>${esc(o.effective_date || 'Data não informada')}</strong></div></div><section class="public-section"><h2>Descrição documentada</h2><p class="detail-lede">${esc(o.description)}</p><p class="source-boundary">Esta ficha organiza referências existentes. Não decide a aplicabilidade jurídica da obrigação à sua organização.</p></section><section class="public-section"><h2>Requisitos estruturados</h2><div class="public-source-list">${requirements || '<div class="public-empty">Nenhum requisito estruturado está vinculado.</div>'}</div></section><section class="public-section"><h2>Documentos e schemas catalogados</h2><div class="public-source-list">${docs || '<div class="public-empty">Nenhum documento vinculado.</div>'}</div>${fields.length ? `${table(['Campo','Nome','Tipo','Obrigatoriedade','Referência'], fields, 'Nenhum campo catalogado.')}<p class="source-boundary">${number(detail.fields.length)} campo(s) catalogado(s); inventário pode ser parcial.</p>` : '<p>Impacto específico ainda não classificado. Nenhum campo está catalogado para esta obrigação.</p>'}</section><section class="public-section"><h2>Prazos oficiais publicados</h2><div class="evidence-grid">${deadlines || '<div class="public-empty">Nenhum prazo oficial comprovado está registrado.</div>'}</div></section><section class="public-section"><h2>Fontes oficiais e evidências</h2><div class="evidence-grid">${sources || '<div class="public-empty">Nenhuma fonte oficial vinculada.</div>'}</div></section>${consultingCta('Como esta obrigação se conecta à sua operação?', 'A LCF Consulting mapeia aplicabilidade, processo, sistema, dataset, pipeline, controle, evidência e plano de ação no contexto da organização.', 'SOLICITAR ANÁLISE DE IMPACTO', `obligation-${o.id}`)}</main>`;
+}
+
+async function renderPublicSchemas(params = new URLSearchParams()) {
+  const query = new URLSearchParams(params);
+  const schemas = await api(`/api/public/schemas${query.size ? `?${query.toString()}` : ''}`);
+  const cards = schemas.map((schema) => `<article class="public-source-card"><span class="public-badge official">${esc(schema.regulator_acronym)} · SOURCE-LINKED</span><h2><a href="/schemas/${encodeURIComponent(schema.id)}">${esc(schema.document_code)} · ${esc(schema.document_name)}</a></h2><div class="fact-row"><span>Versão ${esc(schema.version)}</span><span>${esc(schema.schema_type)}</span><span>${schema.catalogued_fields == null ? 'Campos não informados' : `${number(schema.catalogued_fields)} campos catalogados`}</span><span>${esc(schema.parse_status)} · ${esc(schema.field_inventory_scope)}</span></div><p>${schema.source_url ? extLink(schema.source_url, 'Fonte oficial') : 'Fonte oficial não vinculada'}</p></article>`).join('');
+  publicMeta('Schemas e layouts regulatórios | LCF RegTech', 'Consulte schemas, layouts, versões, campos catalogados e limites de cobertura com links para fontes oficiais.', '/schemas');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · SCHEMAS</p><h1>Schemas e layouts catalogados</h1><p>Versões e campos organizados conforme o escopo disponível. A ausência de um campo no inventário não significa que o documento oficial não o contenha.</p></header><form class="public-filters" data-form="public-schema-filter"><label>Pesquisar<input class="input" type="search" name="q" value="${esc(query.get('q') || '')}" placeholder="Documento, órgão, versão"></label><button class="public-button primary" type="submit">Pesquisar</button><a class="public-button" href="/schemas">Limpar</a></form><div class="public-source-list">${cards || '<div class="public-empty">Nenhum schema público corresponde aos filtros.</div>'}</div></main>`;
+}
+
+async function renderPublicSchemaDetail(id) {
+  const detail = await api(`/api/public/schemas/${encodeURIComponent(id)}`);
+  const schema = detail.schema;
+  publicMeta(`${schema.document_code} ${schema.version} — schema | ${schema.regulator_acronym} | LCF RegTech`, `${schema.document_name}, versão ${schema.version}. Escopo de campos: ${schema.field_inventory_scope}.`, `/schemas/${encodeURIComponent(id)}`, { type: 'article' });
+  const fields = detail.fields.map((field) => `<tr><td>${esc(field.path)}</td><td>${esc(field.name)}</td><td>${esc(field.data_type)}</td><td>${field.required == null ? 'Não classificado' : field.required ? 'Obrigatório' : 'Opcional'}</td><td>${esc(field.source_reference)}</td></tr>`);
+  const changes = detail.changes.map((change) => `<p><a href="/mudancas/${encodeURIComponent(change.id)}">${esc(change.summary)}</a></p>`).join('');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">${esc(schema.regulator_acronym)} · SCHEMA SOURCE-LINKED</p><h1>${esc(schema.document_code)} · ${esc(schema.document_name)}</h1><p>Versão ${esc(schema.version)} · ${esc(schema.schema_type)} · ${esc(schema.parse_status)}</p>${schema.source_url ? extLink(schema.source_url, 'Abrir documento oficial') : ''}</header><section class="public-section"><h2>Escopo da catalogação</h2><div class="public-notice">${esc(schema.field_inventory_scope)} · ${schema.fields_count == null ? 'Quantidade declarada não disponível' : `${number(schema.fields_count)} campos declarados`} · ${number(detail.fields.length)} campos catalogados. Não se afirma cobertura integral além deste escopo.</div></section><section class="public-section"><h2>Campos catalogados</h2>${fields.length ? table(['Caminho','Nome','Tipo','Obrigatoriedade','Referência'], fields, 'Nenhum campo catalogado.') : '<div class="public-empty">Nenhum campo estruturado capturado. Nenhum schema foi inventado.</div>'}</section><section class="public-section"><h2>Mudanças relacionadas</h2>${changes || '<p>Nenhum registro de mudança ligado a esta versão.</p>'}</section></main>`;
+}
+
+async function renderPublicDeadlines() {
+  const deadlines = await api('/api/public/deadlines');
+  const cards = deadlines.map((item) => `<article class="public-source-card"><span class="public-badge official">PRAZO OFICIAL</span><h2>${esc(item.regulator_acronym)} · ${esc(item.obligation_code)} · ${esc(item.obligation_title)}</h2><div class="fact-row"><span>Período ${esc(item.reference_period)}</span><span>Vencimento ${esc(item.due_date)}</span><span>Status ${esc(item.status)}</span></div><p>${esc(item.calculation_basis || 'Base do prazo não informada')}</p>${item.source_url ? extLink(item.source_url, 'Ver fonte oficial do prazo') : '<p>Fonte oficial não disponível</p>'}<p><a href="/obrigacoes/${encodeURIComponent(item.obligation_id)}">Consultar obrigação relacionada →</a></p></article>`).join('');
+  publicMeta('Prazos regulatórios oficiais | LCF RegTech', 'Prazos oficiais publicados com período, obrigação relacionada e evidência da fonte.', '/prazos');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · PRAZOS OFICIAIS</p><h1>Prazos regulatórios publicados</h1><p>Somente registros oficiais com base identificada. Datas internas de planejamento não são exibidas nesta área pública.</p></header><div class="public-source-list">${cards || '<div class="public-empty"><strong>Nenhum prazo oficial comprovado está disponível.</strong><p>Nenhuma data é inferida para preencher a página.</p></div>'}</div></main>`;
+}
+
+function renderPublicAbout() {
+  publicMeta('Sobre o LCF RegTech | Regulatory Data Intelligence', 'Conheça o LCF RegTech, uma iniciativa pública de inteligência regulatória da LCF Consulting: fontes oficiais, snapshots, comparação e evidências.', '/sobre');
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · SOBRE</p><h1>Regulatory Data Intelligence</h1><p>O LCF RegTech monitora fontes regulatórias oficiais, preserva versões, detecta alterações de conteúdo e organiza evidências para análise regulatória e técnica.</p><p class="brand-byline">Uma iniciativa tecnológica pública da <a href="${esc(lcfConsultingUrl('about'))}" target="_blank" rel="noopener noreferrer">LCF Consulting</a>.</p></header><section class="public-section"><h2>O fluxo de inteligência pública</h2><ol class="process-flow"><li><span>01</span><strong>Fonte oficial</strong></li><li><span>02</span><strong>Captura</strong></li><li><span>03</span><strong>Snapshot imutável</strong></li><li><span>04</span><strong>Comparação</strong></li><li><span>05</span><strong>Mudança detectada</strong></li><li><span>06</span><strong>Análise humana</strong></li><li><span>07</span><strong>Impacto possível</strong></li></ol></section><section class="public-section"><h2>Do sinal público ao contexto da organização</h2><p>A parte pública entrega mudanças, histórico, links oficiais, capturas, hashes, diffs básicos e o catálogo já sustentado por fontes. Ela não afirma qual sistema ou processo de uma empresa específica será afetado.</p><div class="consulting-flow"><span>Mudança regulatória</span><span>Obrigação da empresa</span><span>Processo</span><span>Sistema</span><span>Dataset</span><span>Pipeline</span><span>Controle</span><span>Evidência</span><span>Plano de ação</span></div></section><section class="public-section"><h2>Limites de interpretação</h2><ul class="boundary-list"><li>Não é software oficial de regulador nem canal de filing.</li><li>Uma mudança de bytes na fonte não é automaticamente uma mudança de regra regulatória.</li><li>Extrações automáticas permanecem candidatas e exigem revisão adequada.</li><li>O conteúdo não substitui parecer jurídico nem decisão de aplicabilidade.</li></ul></section>${consultingCta('Precisa levar essa inteligência para o ambiente da sua organização?', 'A LCF Consulting desenvolve projetos customizados de inteligência regulatória aplicados a obrigações, processos, dados, sistemas, pipelines, controles e evidências.', 'FALAR COM A LCF CONSULTING', 'about')}</main>`;
+}
+
+async function renderAdminHome() {
+  const cards = ADMIN_NAV_GROUPS.flatMap((group) => group.items.filter(([path]) => path !== '/dashboard').map(([path, label, icon]) => `<a class="admin-module-card" href="#${path}"><span class="nav-icon">${esc(icon)}</span><span><strong>${esc(label)}</strong><small>${esc(PAGE_META[path]?.[1] || 'Área administrativa e desenvolvimento.')}</small></span></a>`)).join('');
+  return `<main class="page">${pageHead('Admin / Operations', 'Área interna de operação e desenvolvimento. Não faz parte da navegação pública.', '<a class="button primary" href="/">Abrir public workspace</a>')}<div class="alert warning"><strong>PUBLIC WORKSPACE ≠ ADMIN / OPERATIONS.</strong> Dados sintéticos, jobs, erros de ingestão, mapping studio, DQ e submission demos permanecem nesta área interna e continuam rotulados como DEMO/REFERENCE quando aplicável.</div><div class="admin-module-grid">${cards}</div></main>`;
 }
 
 async function renderObligations(params = new URLSearchParams()) {
@@ -686,7 +1060,10 @@ async function handleSubmit(event) {
       navigate('/search',{q:query});
       return;
     }
-    if (type === 'obligation-filter') { navigate('/obligations',values); return; }
+    if (type === 'obligation-filter' || type === 'public-obligation-filter') { navigate('/obligations',values); return; }
+    if (type === 'public-change-filter') { navigate('/changes',values); return; }
+    if (type === 'public-source-filter') { navigate('/sources',values); return; }
+    if (type === 'public-schema-filter') { navigate('/schemas',values); return; }
     if (type === 'admin-key') {
       const key = String(values.admin_key || '').trim();
       try {
@@ -777,6 +1154,7 @@ function notify(message,type='success') {
 document.addEventListener('click', handleClick);
 document.addEventListener('submit', handleSubmit);
 window.addEventListener('hashchange', renderApp);
+window.addEventListener('popstate', renderApp);
 window.addEventListener('keydown',(event)=>{
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k') {
     event.preventDefault();
