@@ -47,6 +47,13 @@ npm run dev
 
 There is no separate frontend build step; the interface is static HTML, CSS and browser JavaScript served by the Node HTTP server.
 
+## Public regulatory alerts
+
+The public `/alertas` experience supports double opt-in email subscriptions by regulator and topic. Subscriptions are stored in PostgreSQL/SQLite migrations, confirmation and unsubscribe links use HMAC tokens, and a delivery ledger prevents duplicate notifications for the same subscriber/change/mode.
+
+Immediate alerts are dispatched after `/api/jobs/collect`; daily digests are dispatched by `/api/jobs/alerts/daily`. Email delivery uses the Resend HTTP API only when `RESEND_API_KEY` and `ALERT_FROM_EMAIL` are configured.
+
+A first raw capture does not trigger an alert: notifications are based on persisted `SOURCE_CHANGED` records that have both previous and current snapshots.
 ## Product flow
 
 The common reference path is:
@@ -146,6 +153,7 @@ All API routes are same-origin under `/api`; JSON request bodies are expected fo
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/api/health`, `/api/dashboard` | Health and aggregate inventory view |
+| GET | `/api/public/alerts/config`; POST `/api/public/alerts/subscribe` | Public alert preferences and double-opt-in signup |
 | GET | `/api/regulators`, `/api/regulations`, `/api/obligations`, `/api/obligations/:id` | Shared regulatory inventory and obligation trace |
 | GET | `/api/requirements`, `/api/documents`, `/api/schemas`, `/api/schemas/:id`, `/api/fields` | Requirements and versioned schema/field inventory |
 | GET / POST | `/api/changes`; GET `/api/impacts` | Read/register source-backed or explicitly unverified changes and technical impacts |
@@ -178,8 +186,8 @@ The Vercel entry point is the single-function gateway `api/index.js` — `vercel
 1. **Database** — provision PostgreSQL (Neon, Vercel Postgres or Supabase) and set `DATABASE_URL` (pooled connection string recommended for serverless). Migrations are additive-only and are applied idempotently by `applyMigrations` at boot (numbered SQL files in `migrations/postgres/`); run `npm run migrate` against the same URL from a Node environment for explicit control. Never auto-runs destructive changes.
 2. **Durable storage** — create a Vercel Blob store and set `BLOB_READ_WRITE_TOKEN` (raw snapshots land in Blob automatically; fallback `STORAGE_PROVIDER=database` uses `BYTEA`).
 3. **Secrets** — set `ADMIN_API_KEY` (long random value; the UI prompts for it on the Jobs page and stores it in browser `localStorage` as `lcf_admin_key`) and `CRON_SECRET`.
-4. **Cron** — configure a Cron Job in the Vercel dashboard (Project → Settings → Cron Jobs) with schedule `5 8 * * *` and path `/api/jobs/collect`; Vercel attaches `Authorization: Bearer $CRON_SECRET` automatically when `CRON_SECRET` is set. (Keeping it out of `vercel.json` matches the currently-deploying configuration; see the note above.)
-5. **Environment variables** (see `.env.example`): `DATABASE_URL`, `ADMIN_API_KEY`, `CRON_SECRET`, `BLOB_READ_WRITE_TOKEN`, optional `STORAGE_PROVIDER`, `PG_POOL_MAX`, `LCF_ALLOW_SEED`.
+4. **Cron** — keep cron configuration in the Vercel dashboard rather than `vercel.json`. For production monitoring, schedule `/api/jobs/collect` every 3 hours (recommended schedule `5 */3 * * *`). The collection endpoint runs only sources whose polling window is due and dispatches IMMEDIATE email alerts after capture/diff. Schedule `/api/jobs/alerts/daily` once per day (for example `30 12 * * *`) to deliver DAILY digests. Both cron endpoints require the `CRON_SECRET` bearer token.
+5. **Environment variables** (see `.env.example`): `DATABASE_URL`, `ADMIN_API_KEY`, `CRON_SECRET`, `BLOB_READ_WRITE_TOKEN`, optional `STORAGE_PROVIDER`, `PG_POOL_MAX`, `LCF_ALLOW_SEED`; for public alerts also set `PUBLIC_SITE_URL`, `ALERT_TOKEN_SECRET`, `RESEND_API_KEY`, `ALERT_FROM_EMAIL` and optionally `ALERT_REPLY_TO`.
 
 **Verification status (honest):** from the current development sandbox, outbound connections to `bcb.gov.br`, `gov.br`, `in.gov.br` and `planalto.gov.br` fail at the TCP/TLS level (network egress restriction), so no real official capture has been stored from this environment — the seed correctly reports **zero raw snapshots**. The full fetch→hash→persist→diff chain is proven against a realistic in-process HTTP layer in `test/ingestion-live.test.js` (conditional GET, byte-identical re-serve, retries, failure persistence). The first `npm run collect` in the deployed environment either captures official bytes (mode becomes `LIVE` with counts) or persists a truthful `ingestion_errors` entry; both outcomes display as such.
 
