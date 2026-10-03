@@ -561,7 +561,177 @@ export async function seedDatabase(db) {
     ];
     for (const [id,regulatory_field_id,mapping_id,name,rule_type,expression,severity,description,source] of dqSeed) await stableInsert(db,'dq_rules',{id,regulatory_field_id,mapping_id,name,rule_type,expression,severity,description,source,is_demo:1});
 
-    const deadlineSeed = [
+  
+  // Public technical-catalog expansion.
+  // These entries are source-backed layout/schema references from official BCB and SUSEP catalogs.
+  // They intentionally do NOT invent field inventories: when the official structure is known but
+  // fields have not yet been parsed, the schema is published as CATALOG_ONLY.
+  const bcbCatalogUrl = 'https://www.bcb.gov.br/estabilidadefinanceira/leiautedocumentoscrd';
+  const susepCatalogUrl = 'https://www.gov.br/susep/pt-br/servicos/mercado/enviar-dados/areas-responsaveis-pelos-dados';
+  const susepBdrUrl = 'https://www.gov.br/susep/pt-br/servicos/mercado/enviar-dados/roteiro-de-envio-dos-arquivos-de-dados-de-reclamacao-de-ouvidorias';
+  const susepManualUrl = 'https://www.gov.br/susep/pt-br/servicos/mercado/enviar-dados/arquivos/manual_orientacao_envio_dados_Mar2026.pdf/@@display-file/file';
+
+  await stableInsert(db,'regulations',{
+    id:'reg-bcb-layout-catalog',regulator_id:'bcb',type:'TECHNICAL_CATALOG',number:'BCB-CRD-LAYOUTS',
+    title:'Banco Central — Catálogo oficial de leiautes de arquivos e base normativa',
+    description:'Catálogo técnico oficial de documentos transferidos ao Banco Central, com referências de leiaute, XSD e outros artefatos técnicos.',
+    publication_date:null,effective_date:null,status:'ACTIVE',source_url:bcbCatalogUrl,content_hash:null,content_hash_scope:null,source_excerpt:null,is_demo:0
+  });
+  await stableInsert(db,'regulations',{
+    id:'reg-susep-layout-catalog',regulator_id:'susep',type:'TECHNICAL_CATALOG',number:'SUSEP-DATA-LAYOUTS',
+    title:'SUSEP — Catálogo oficial de dados e leiautes enviados pelo mercado',
+    description:'Catálogo técnico oficial de arquivos, formatos, periodicidades e meios de transmissão usados por supervisionadas.',
+    publication_date:null,effective_date:null,status:'ACTIVE',source_url:susepCatalogUrl,content_hash:null,content_hash_scope:null,source_excerpt:null,is_demo:0
+  });
+
+  await stableInsert(db,'regulatory_obligations',{
+    id:'obl-bcb-layout-reference',regulation_id:'reg-bcb-layout-catalog',regulator_id:'bcb',code:'BCB-LAYOUT-REFERENCE',
+    title:'Catálogo técnico de documentos regulatórios do BCB',
+    description:'Referência técnica para os leiautes oficialmente publicados pelo BCB. Não representa, isoladamente, aplicabilidade jurídica a uma instituição.',
+    affected_entities:'Entidades sujeitas aos documentos listados, conforme a base normativa específica de cada documento.',
+    sector:'Financial Services',category:'TECHNICAL_REFERENCE',frequency:'UNKNOWN',deadline_rule:'Consultar a norma específica de cada documento.',
+    effective_date:null,submission_method:'Conforme documento específico',submission_system:'STA/CRD e sistemas indicados pelo BCB',
+    output_format:'MULTIPLE',status:'REFERENCE_ONLY',criticality:'MEDIUM',impact_score:0,impact_level:'UNASSESSED',
+    impact_rationale:'Referência técnica; aplicabilidade depende do documento e da instituição.',owner:'Regulatory Data',is_demo:0,updated_at:collectedAt
+  });
+  await stableInsert(db,'regulatory_obligations',{
+    id:'obl-susep-layout-reference',regulation_id:'reg-susep-layout-catalog',regulator_id:'susep',code:'SUSEP-LAYOUT-REFERENCE',
+    title:'Catálogo técnico de arquivos regulatórios da SUSEP',
+    description:'Referência técnica para os arquivos e formatos oficialmente publicados pela SUSEP. Não representa, isoladamente, aplicabilidade jurídica a uma supervisionada.',
+    affected_entities:'Supervisionadas abrangidas por cada conjunto de dados, conforme normativo e página oficial.',
+    sector:'Insurance',category:'TECHNICAL_REFERENCE',frequency:'UNKNOWN',deadline_rule:'Consultar o conjunto de dados e a norma específica.',
+    effective_date:null,submission_method:'Conforme conjunto de dados',submission_system:'Sistemas indicados pela SUSEP',
+    output_format:'MULTIPLE',status:'REFERENCE_ONLY',criticality:'MEDIUM',impact_score:0,impact_level:'UNASSESSED',
+    impact_rationale:'Referência técnica; aplicabilidade depende do conjunto de dados.',owner:'Regulatory Data',is_demo:0,updated_at:collectedAt
+  });
+
+  const bcbReferenceLayouts = [
+    ['1501','Garantias constituídas sobre imóveis relativas a operações de crédito','XML/XSD','XML'],
+    ['2011','Demonstrativo diário de requerimento de capital e limites operacionais','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['2030','Documento de Risco Social, Ambiental e Climático — DRSAC','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['2060','Demonstrativo de Risco de Mercado — DRM','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4010','COSIF — Documento 4010','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4016','COSIF — Documento 4016','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4060','COSIF — Documento 4060','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4066','COSIF — Documento 4066','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4090','COSIF — Documento 4090','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4096','COSIF — Documento 4096','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4413','COSIF — Documento 4413','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4423','COSIF — Documento 4423','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4433','COSIF — Documento 4433','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4500','COSIF — Documento 4500','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4510','COSIF — Documento 4510','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4034','Estatísticas Bancárias Internacionais — EBI 4034','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4035','Estatísticas Bancárias Internacionais — EBI 4035','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['4076','Relatório do Conglomerado Prudencial','XML/XSD','XML'],
+    ['5005','Depósitos Bancários — CDB','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['5011','Participações societárias das instituições','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['5021','UNICAD — Correspondentes bancários','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['5031','UNICAD — Correspondente cambial','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['5032','UNICAD — Posto de câmbio','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['5050','Demonstrativo de Risco Operacional — DRO','OFFICIAL_LAYOUT','UNKNOWN'],
+    ['5300','Informações sobre Relacionamentos de Cooperativa','XML/XSD','XML'],
+    ['5401','Informações sobre Cotistas de Fundos — administradores','XML/XSD','XML'],
+    ['5402','Informações sobre Cotistas de Fundos — distribuidores','XML/XSD','XML'],
+    ['5500','Poupança — Informações Diárias','XML/XSD','XML'],
+    ['5710','Prestação de Serviços de Ativos Virtuais — Documento 5710','XML/XSD','XML'],
+    ['5711','Prestação de Serviços de Ativos Virtuais — Documento 5711','XML/XSD','XML'],
+    ['5816','Cartão de crédito internacional emitido no país','XML/XSD','XML'],
+    ['9011','Demonstrações financeiras — remessa JSON 9011','JSON_SCHEMA','JSON'],
+    ['9031','Demonstrações financeiras consolidadas — remessa JSON 9031','JSON_SCHEMA','JSON'],
+    ['9800','SVR — informações individualizadas de valores a devolver','XML/XSD','XML'],
+    ['9805','SVR — informações agregadas de valores devolvidos','XML/XSD','XML'],
+    ['9810','SVR — arquivo de retorno/adesão 9810','XML/XSD','XML'],
+  ];
+  for (const [code,name,schema_type,output_format] of bcbReferenceLayouts) {
+    const documentId = `doc-bcb-catalog-${code.toLowerCase()}`;
+    await stableInsert(db,'regulatory_documents',{
+      id:documentId,obligation_id:'obl-bcb-layout-reference',code,name,
+      description:`Leiaute técnico do documento ${code} referenciado no catálogo oficial do Banco Central.`,
+      document_type:'LAYOUT',frequency:'UNKNOWN',output_format,status:'REFERENCE_ONLY',source_id:null,adapter:null,is_demo:0
+    });
+    await stableInsert(db,'schema_versions',{
+      id:`schema-bcb-catalog-${code.toLowerCase()}-current`,document_id:documentId,
+      version:'Referência vigente no catálogo oficial',effective_from:null,effective_to:null,schema_type,
+      schema_url:bcbCatalogUrl,local_path:null,content_hash:null,content_hash_scope:'OFFICIAL_CATALOG_REFERENCE',
+      fields_count:null,field_inventory_scope:'CATALOG_ONLY — leiaute/XSD oficial identificado; inventário de campos ainda não extraído',
+      parse_status:'CATALOG_ONLY',adapter_config_json:null,status:'CURRENT'
+    });
+  }
+
+  const susepReferenceLayouts = [
+    ['FIP','Formulário de Informações Periódicas','MDB_CATALOG','MDB',susepCatalogUrl],
+    ['FIP-EST','FIP Estatístico','DELIMITED_LAYOUT','TXT',susepCatalogUrl],
+    ['R_SFH','Seguro Habitacional — riscos/apólices','DBF_LAYOUT','DBF',susepCatalogUrl],
+    ['S_SFH','Seguro Habitacional — sinistros','DBF_LAYOUT','DBF',susepCatalogUrl],
+    ['SFH-CONTAS','Prestação de contas do Sistema Habitacional','DELIMITED_LAYOUT','TXT',susepCatalogUrl],
+    ['S_COMP','Seguros Compreensivos — sinistros S_COMP','DBF_LAYOUT','DBF',susepManualUrl],
+    ['R_RURAL','Seguro Rural e Animais — riscos R_RURAL','DBF_LAYOUT','DBF',susepCatalogUrl],
+    ['S_RURAL','Seguro Rural e Animais — sinistros S_RURAL','DBF_LAYOUT','DBF',susepCatalogUrl],
+    ['R_AUTO','Seguro de Automóveis — riscos R_AUTO','DBF_LAYOUT','DBF',susepCatalogUrl],
+    ['S_AUTO','Seguro de Automóveis — sinistros S_AUTO','DBF_LAYOUT','DBF',susepCatalogUrl],
+    ['R_TRANSP','Seguro de Transportes — riscos R_TRANSP','DBF_LAYOUT','DBF',susepCatalogUrl],
+    ['S_TRANSP','Seguro de Transportes — sinistros S_TRANSP','DBF_LAYOUT','DBF',susepCatalogUrl],
+    ['GARANTIA','Seguro Garantia — remessas','DELIMITED_LAYOUT','TXT',susepCatalogUrl],
+    ['BDPO','Banco de Dados de Perdas Operacionais','XML_LAYOUT','XML',susepCatalogUrl],
+    ['BDR','Base de Dados de Reclamações','JSON_SCHEMA','JSON',susepBdrUrl],
+  ];
+  for (const [code,name,schema_type,output_format,schema_url] of susepReferenceLayouts) {
+    const documentId = `doc-susep-catalog-${code.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`;
+    const isBdr = code === 'BDR';
+    await stableInsert(db,'regulatory_documents',{
+      id:documentId,obligation_id:'obl-susep-layout-reference',code,name,
+      description:isBdr
+        ? 'Layout JSON da Base de Dados de Reclamações, com JsonSchema oficial referenciado pela SUSEP.'
+        : `Estrutura oficial de ${name} identificada no catálogo/manual de envio de dados da SUSEP.`,
+      document_type:'LAYOUT',frequency:'UNKNOWN',output_format,status:'REFERENCE_ONLY',source_id:null,adapter:null,is_demo:0
+    });
+    await stableInsert(db,'schema_versions',{
+      id:`schema-susep-catalog-${code.toLowerCase().replace(/[^a-z0-9]+/g,'-')}-current`,document_id:documentId,
+      version:isBdr ? 'BDR 2026' : 'Referência vigente no catálogo oficial',effective_from:isBdr ? '2026-03-10' : null,effective_to:null,schema_type,
+      schema_url,local_path:null,content_hash:null,content_hash_scope:'OFFICIAL_CATALOG_REFERENCE',
+      fields_count:isBdr ? 21 : null,
+      field_inventory_scope:isBdr
+        ? 'PARTIAL — 21 propriedades demonstradas no roteiro oficial; JsonSchema oficial vinculado'
+        : 'CATALOG_ONLY — estrutura/formato oficial identificado; inventário de campos ainda não extraído',
+      parse_status:isBdr ? 'CURATED_EXTRACT' : 'CATALOG_ONLY',adapter_config_json:null,status:'CURRENT'
+    });
+  }
+
+  const bdrFields = [
+    ['entidade','entidade','Código da entidade supervisionada.','STRING',1],
+    ['competencia','competencia','Competência do envio.','STRING',1],
+    ['reclamacoes','reclamacoes','Array de reclamações.','ARRAY',1],
+    ['registro','reclamacoes[].registro','Identificador sequencial do registro.','INTEGER',1],
+    ['protocolo','reclamacoes[].protocolo','Protocolo da reclamação.','STRING',1],
+    ['identificacaoResponsavel','reclamacoes[].identificacaoResponsavel','Identificação do responsável.','STRING',null],
+    ['dataAbertura','reclamacoes[].dataAbertura','Data de abertura.','STRING',1],
+    ['dataEncerramento','reclamacoes[].dataEncerramento','Data de encerramento ou nulo quando aplicável.','STRING',null],
+    ['numeroContrato','reclamacoes[].numeroContrato','Número do contrato/plano/título/produto.','STRING',null],
+    ['numeroProcessoSusep','reclamacoes[].numeroProcessoSusep','Número do processo SUSEP.','STRING',null],
+    ['problema','reclamacoes[].problema','Código do problema.','INTEGER',1],
+    ['segmento','reclamacoes[].segmento','Código do segmento.','INTEGER',1],
+    ['protocoloConsumidorGovBr','reclamacoes[].protocoloConsumidorGovBr','Protocolo Consumidor.gov.br, quando aplicável.','STRING',null],
+    ['protocoloOPIN','reclamacoes[].protocoloOPIN','Protocolo OPIN, quando aplicável.','STRING',null],
+    ['ouvidoria','reclamacoes[].ouvidoria','Indicador de ouvidoria.','INTEGER',1],
+    ['canalVenda','reclamacoes[].canalVenda','Código do canal de venda.','INTEGER',1],
+    ['status','reclamacoes[].status','Código de status da reclamação.','INTEGER',1],
+    ['canalReclamacao','reclamacoes[].canalReclamacao','Código do canal de reclamação.','INTEGER',1],
+    ['nome','reclamacoes[].reclamante.nome','Nome do reclamante.','STRING',null],
+    ['identificacaoReclamante','reclamacoes[].reclamante.identificacaoReclamante','Identificação do reclamante.','STRING',null],
+    ['cep','reclamacoes[].reclamante.cep','CEP do reclamante.','STRING',null],
+    ['tipo','reclamacoes[].reclamante.tipo','Tipo do reclamante.','INTEGER',null],
+  ];
+  for (const [name,path,description,data_type,required] of bdrFields) {
+    await stableInsert(db,'regulatory_fields',{
+      id:`fld-susep-bdr-${name.toLowerCase()}`,schema_version_id:'schema-susep-catalog-bdr-current',
+      name,path,parent_path:path.includes('.') ? path.split('.').slice(0,-1).join('.') : null,
+      description,data_type,required,required_condition:null,min_occurs:null,max_occurs:null,length:null,precision:null,scale:null,
+      domain:null,pattern:null,source_reference:'Roteiro oficial SUSEP BDR 2026 e exemplo de payload JSON publicado na página oficial.',status:'ACTIVE'
+    });
+  }
+
+  const deadlineSeed = [
       ['deadline-bcb-4111-20261002','obl-bcb-4111','2026-10-02','2026-10-07','OFFICIAL','https://www.bcb.gov.br/content/estabilidadefinanceira/Documents/Leiaute_de_documentos/saldosDiariosInstrucoesPreenchimentoV2.pdf','UPCOMING','Finance Data','Data-base 2026-10-02 + 3º dia útil subsequente. Dias úteis 05, 06 e 07/10/2026; calendários locais não inferidos. Fonte do prazo: manual 4111.',0],
       ['deadline-bcb-3040-202609','obl-bcb-scr-3040','2026-09','2026-10-14','OFFICIAL','https://www.bcb.gov.br/content/estabilidadefinanceira/supervisao/Prazos_Nao_contabeis_Cosif.pdf','UPCOMING','Regulatory Reporting','Data-base 2026-09; vencimento 14/10/2026 reproduzido do calendário oficial BCB 2026.',0],
       ['deadline-susep-rcomp-2026','obl-susep-rcomp','2026','2027-03-31','OFFICIAL','https://www.gov.br/susep/pt-br/servicos/mercado/enviar-dados/arquivos/manual_orientacao_envio_dados_Mar2026.pdf/@@display-file/file','UPCOMING','Insurance Reporting','Ano de dados 2026; manual SUSEP 02/2026 informa entrega anual até 31 de março.',0],
@@ -644,7 +814,7 @@ export async function seedDatabase(db) {
 }
 
 export async function bootstrapOfficialCatalog(db) {
-  const catalogVersion = '2026-10-03.3';
+  const catalogVersion = '2026-10-03.4';
   const existing = await db.prepare("SELECT value FROM system_settings WHERE key = 'official_catalog_version'").get();
   if (existing?.value === catalogVersion) return { bootstrapped: false, reason: 'official_catalog_version exists', version: catalogVersion };
 
@@ -801,7 +971,7 @@ export async function bootstrapOfficialCatalog(db) {
     started_at: collectedAt,
     finished_at: collectedAt,
     status: 'SUCCEEDED',
-    records_processed: obligations.length + requirementsSeed.length + documents.length + sourceLinksSeed.length + officialSchemaRows.length + regulatoryFieldSeed.length + deadlineSeed.length,
+    records_processed: obligations.length + requirementsSeed.length + documents.length + sourceLinksSeed.length + officialSchemaRows.length + regulatoryFieldSeed.length + bcbReferenceLayouts.length + susepReferenceLayouts.length + bdrFields.length + deadlineSeed.length,
     records_created: obligations.length + requirementsSeed.length + documents.length,
     records_updated: 0,
     errors: null,
