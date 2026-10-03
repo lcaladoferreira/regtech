@@ -450,11 +450,28 @@ html { min-width: 320px; }
 .admin-module-card strong { font-size: 11px; }
 .admin-module-card small { margin-top: 4px; color: #7e8d9d; font-size: 9px; line-height: 1.5; }
 
+.alert-subscribe-panel { max-width: 920px; }
+.alert-subscribe-form { display: grid; gap: 18px; padding: 18px; border: 1px solid #dfe7ec; border-radius: 10px; background: #fff; }
+.alert-subscribe-form fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.alert-subscribe-form legend, .alert-email { display: grid; gap: 7px; color: #3d5268; font-size: 10px; font-weight: 800; }
+.alert-email input { min-height: 42px; padding: 10px 12px; border: 1px solid #cfd9e1; border-radius: 6px; font-size: 12px; }
+.alert-choice-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 9px; }
+.alert-choice { display: flex; align-items: flex-start; gap: 9px; min-width: 0; padding: 10px 11px; border: 1px solid #e0e7ec; border-radius: 7px; background: #fbfcfd; color: #50657a; font-size: 10px; cursor: pointer; }
+.alert-choice input { flex: 0 0 auto; margin-top: 2px; }
+.alert-choice span, .alert-choice strong, .alert-choice small { display: block; min-width: 0; }
+.alert-choice strong { color: #2f485f; font-size: 10px; }
+.alert-choice small { margin-top: 3px; color: #8090a0; font-size: 8px; line-height: 1.45; }
+.alert-consent { display: flex; align-items: flex-start; gap: 9px; color: #5d7084; font-size: 9px; line-height: 1.55; }
+.alert-consent input { margin-top: 2px; }
+.alert-form-status:empty { display: none; }
+.alert-form-status .public-notice { margin-top: 0; }
+
 @media (max-width: 1020px) {
   .public-header { gap: 11px; padding-right: 16px; padding-left: 16px; }
   .public-nav-link { padding-right: 8px; padding-left: 8px; font-size: 10px; }
   .public-main { padding-right: 20px; padding-left: 20px; }
   .public-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .alert-choice-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media (max-width: 720px) {
   .public-header { position: sticky; display: grid; grid-template-columns: 1fr auto; gap: 8px; min-height: auto; padding: 9px 12px 0; }
@@ -477,6 +494,7 @@ html { min-width: 320px; }
   .consulting-cta .public-button { width: 100%; }
   .public-filters { grid-template-columns: 1fr; padding: 11px; }
   .public-filters > * { width: 100%; }
+  .alert-choice-grid { grid-template-columns: 1fr; }
   .public-change-card, .public-source-card { padding: 14px; }
   .public-change-card-top { flex-direction: column; }
   .fact-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
