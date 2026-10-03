@@ -11,7 +11,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { openDatabase } from '../src/db.js';
-import { handleApi } from '../src/server.js';
+import { handleApi, handlePublicPage } from '../src/server.js';
 
 let bootstrap = null;
 export function getBootstrap() {
@@ -26,14 +26,26 @@ export function getBootstrap() {
 export default async function handler(req, res) {
   const base = `https://${req.headers.host || 'localhost'}`;
   const rewritten = new URL(req.url || '/api', base);
-  const path = rewritten.searchParams.get('__path') || '';
-  rewritten.searchParams.delete('__path');
-  rewritten.pathname = path ? `/api/${path}` : '/api';
-
+  const pagePath = rewritten.searchParams.get('__page');
   const requestId = randomUUID();
   const { db, error: dbError } = await getBootstrap();
 
   try {
+    if (pagePath) {
+      const pageUrl = new URL(pagePath, base);
+      for (const [key, value] of rewritten.searchParams.entries()) if (key !== '__page' && key !== '__path') pageUrl.searchParams.set(key, value);
+      const handled = await handlePublicPage(req, res, db, pageUrl, requestId);
+      if (!handled && !res.headersSent) {
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+        res.end('Not found.');
+      }
+      return;
+    }
+    const path = rewritten.searchParams.get('__path') || '';
+    rewritten.searchParams.delete('__path');
+    rewritten.pathname = path ? `/api/${path}` : '/api';
     await handleApi(req, res, db, rewritten, requestId);
   } catch (error) {
     if (res.headersSent) return;

@@ -7,9 +7,21 @@
     }
   },
   "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/index?__path=:path*"
-    }
+    { "source": "/api/:path*", "destination": "/api/index?__path=:path*" },
+    { "source": "/", "destination": "/api/index?__page=%2F" },
+    { "source": "/mudancas", "destination": "/api/index?__page=/mudancas" },
+    { "source": "/mudancas/:changeId", "destination": "/api/index?__page=/mudancas/:changeId" },
+    { "source": "/fontes", "destination": "/api/index?__page=/fontes" },
+    { "source": "/fontes/:sourceId", "destination": "/api/index?__page=/fontes/:sourceId" },
+    { "source": "/orgaos", "destination": "/api/index?__page=/orgaos" },
+    { "source": "/obrigacoes", "destination": "/api/index?__page=/obrigacoes" },
+    { "source": "/obrigacoes/:obligationId", "destination": "/api/index?__page=/obrigacoes/:obligationId" },
+    { "source": "/schemas", "destination": "/api/index?__page=/schemas" },
+    { "source": "/schemas/:schemaId", "destination": "/api/index?__page=/schemas/:schemaId" },
+    { "source": "/prazos", "destination": "/api/index?__page=/prazos" },
+    { "source": "/sobre", "destination": "/api/index?__page=/sobre" },
+    { "source": "/admin", "destination": "/api/index?__page=/admin" },
+    { "source": "/robots.txt", "destination": "/api/index?__page=/robots.txt" },
+    { "source": "/sitemap.xml", "destination": "/api/index?__page=/sitemap.xml" }
   ]
 }
