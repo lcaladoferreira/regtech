@@ -16,7 +16,7 @@
 import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { seedAllowed, seedDatabase, DEMO_FIXTURES } from './seed.js';
+import { seedAllowed, seedDatabase, bootstrapOfficialCatalog, DEMO_FIXTURES } from './seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
@@ -51,6 +51,7 @@ export async function openDatabase(options = {}) {
   if (isPostgresConfigured(env)) {
     const db = await openPostgres(env.DATABASE_URL, { env, pgModule: options.pg });
     await applyMigrations(db, options);
+    await bootstrapOfficialCatalog(db);
     db.dataMode = 'LIVE';
     return db;
   }
