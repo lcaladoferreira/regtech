@@ -643,7 +643,7 @@ async function listPublicRegulators(db) {
 
 async function listPublicObligations(db, params = new URLSearchParams()) {
   const rows = await listObligations(db, params);
-  return rows.filter((row) => Number(row.is_demo) !== 1 && Number(row.regulation_is_demo) !== 1
+  return rows.filter((row) => row.status === 'ACTIVE' && Number(row.is_demo) !== 1 && Number(row.regulation_is_demo) !== 1
     && isOfficialSourceUrl(row.regulation_source_url)).map((row) => ({
     id: row.id, regulation_id: row.regulation_id, regulator_id: row.regulator_id,
     code: row.code, title: row.title, description: row.description,
