@@ -644,7 +644,7 @@ export async function seedDatabase(db) {
 }
 
 export async function bootstrapOfficialCatalog(db) {
-  const catalogVersion = '2026-10-03.2';
+  const catalogVersion = '2026-10-03.3';
   const existing = await db.prepare("SELECT value FROM system_settings WHERE key = 'official_catalog_version'").get();
   if (existing?.value === catalogVersion) return { bootstrapped: false, reason: 'official_catalog_version exists', version: catalogVersion };
 
@@ -764,6 +764,18 @@ export async function bootstrapOfficialCatalog(db) {
     await stableInsert(db,'regulatory_documents',{...document,source_id,is_demo:0});
   }
 
+  const officialSchemaRows = [
+    { id:'schema-bcb-4111-v2026', document_id:'doc-bcb-4111', version:'Manual rev. 2026-05-07', effective_from:'2025-01-02', schema_type:'XML', schema_url:sources.find((row)=>row.id==='src-bcb-4111-manual').source_url, content_hash:hash(sources.find((row)=>row.id==='src-bcb-4111-manual').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:6, field_inventory_scope:'FULL_MANUAL_FIELD_LIST (6 fields)', parse_status:'CURATED_EXTRACT', adapter_config_json:null },
+    { id:'schema-bcb-3040-current', document_id:'doc-bcb-3040', version:'Unversioned source layout (current official page)', effective_from:null, schema_type:'XML/XLS_LAYOUT', schema_url:sources.find((row)=>row.id==='src-bcb-3040-layout').source_url, content_hash:hash(sources.find((row)=>row.id==='src-bcb-3040-layout').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:14, field_inventory_scope:'PARTIAL — 14 selected header/client/operation fields only', parse_status:'CURATED_EXTRACT', adapter_config_json:null },
+    { id:'schema-susep-rcomp-2026', document_id:'doc-susep-rcomp', version:'Manual 02/2026 (seção 3.6)', effective_from:null, schema_type:'DBF_LAYOUT', schema_url:sources.find((row)=>row.id==='src-susep-manual').source_url, content_hash:hash(sources.find((row)=>row.id==='src-susep-manual').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:18, field_inventory_scope:'FULL R_COMP.DBF table 3-1 (18 fields)', parse_status:'CURATED_EXTRACT', adapter_config_json:null },
+    { id:'schema-susep-openinsurance-67', document_id:'doc-susep-openinsurance', version:'6.7 (19/08/2024)', effective_from:null, schema_type:'MANUAL_SCOPE', schema_url:sources.find((row)=>row.id==='src-susep-openinsurance').source_url, content_hash:hash(sources.find((row)=>row.id==='src-susep-openinsurance').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:null, field_inventory_scope:'UNSTRUCTURED — manual de escopo; contrato JSON/OpenAPI e inventário de campos não capturados', parse_status:'UNSTRUCTURED', adapter_config_json:null },
+    { id:'schema-rfb-decripto-101', document_id:'doc-rfb-decripto', version:'1.01 (Ago/2026)', effective_from:'2026-07-01', schema_type:'PIPE_DELIMITED_LAYOUT', schema_url:sources.find((row)=>row.id==='src-rfb-decripto').source_url, content_hash:hash(sources.find((row)=>row.id==='src-rfb-decripto').excerpt), content_hash_scope:'CURATED_EXCERPT_SHA256', fields_count:24, field_inventory_scope:'PARTIAL — registros 0000 e 0110 (24 campos; documento oficial completo possui outros registros)', parse_status:'CURATED_EXTRACT', adapter_config_json:null },
+  ];
+  for (const schema of officialSchemaRows) await stableInsert(db,'schema_versions',{...schema,status:'CURRENT'});
+
+  if (regulatoryFieldSeed.length === 0) seedSchemas();
+  for (const fieldRow of regulatoryFieldSeed) await stableInsert(db,'regulatory_fields',fieldRow);
+
   const deadlineSeed = [
     ['deadline-bcb-4111-20261002','obl-bcb-4111','2026-10-02','2026-10-07','OFFICIAL','https://www.bcb.gov.br/content/estabilidadefinanceira/Documents/Leiaute_de_documentos/saldosDiariosInstrucoesPreenchimentoV2.pdf','UPCOMING','Finance Data','Data-base 2026-10-02 + 3º dia útil subsequente. Fonte do prazo: manual 4111.'],
     ['deadline-bcb-3040-202609','obl-bcb-scr-3040','2026-09','2026-10-14','OFFICIAL','https://www.bcb.gov.br/content/estabilidadefinanceira/supervisao/Prazos_Nao_contabeis_Cosif.pdf','UPCOMING','Regulatory Reporting','Data-base 2026-09; vencimento 14/10/2026 reproduzido do calendário oficial BCB 2026.'],
@@ -777,6 +789,8 @@ export async function bootstrapOfficialCatalog(db) {
   const requirementCount = (await db.prepare('SELECT COUNT(*) AS n FROM requirements WHERE is_demo = 0').get()).n;
   const documentCount = (await db.prepare('SELECT COUNT(*) AS n FROM regulatory_documents WHERE is_demo = 0').get()).n;
   const linkCount = (await db.prepare("SELECT COUNT(*) AS n FROM regulatory_source_links WHERE entity_type='OBLIGATION'").get()).n;
+  const schemaCount = (await db.prepare("SELECT COUNT(*) AS n FROM schema_versions").get()).n;
+  const fieldCount = (await db.prepare("SELECT COUNT(*) AS n FROM regulatory_fields").get()).n;
 
   await db.prepare(`INSERT INTO system_settings (key,value,updated_at) VALUES (?,?,?)
     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`)
@@ -787,7 +801,7 @@ export async function bootstrapOfficialCatalog(db) {
     started_at: collectedAt,
     finished_at: collectedAt,
     status: 'SUCCEEDED',
-    records_processed: obligations.length + requirementsSeed.length + documents.length + sourceLinksSeed.length + deadlineSeed.length,
+    records_processed: obligations.length + requirementsSeed.length + documents.length + sourceLinksSeed.length + officialSchemaRows.length + regulatoryFieldSeed.length + deadlineSeed.length,
     records_created: obligations.length + requirementsSeed.length + documents.length,
     records_updated: 0,
     errors: null,
@@ -799,6 +813,8 @@ export async function bootstrapOfficialCatalog(db) {
       requirement_count: Number(requirementCount || 0),
       document_count: Number(documentCount || 0),
       source_link_count: Number(linkCount || 0),
+      schema_count: Number(schemaCount || 0),
+      regulatory_field_count: Number(fieldCount || 0),
     }),
   });
   return {
@@ -807,6 +823,8 @@ export async function bootstrapOfficialCatalog(db) {
     requirements: Number(requirementCount || 0),
     documents: Number(documentCount || 0),
     source_links: Number(linkCount || 0),
+    schemas: Number(schemaCount || 0),
+    regulatory_fields: Number(fieldCount || 0),
   };
 }
 
