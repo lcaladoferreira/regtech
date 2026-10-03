@@ -121,7 +121,7 @@ test('public workspace renders evidenced snapshots, clear SOURCE_CHANGED status,
     assert.match(raw.headers.get('x-robots-tag'), /noindex/);
     assert.match(await raw.text(), /Registro beta/);
 
-    for (const path of ['/', '/mudancas', '/fontes', '/orgaos', '/obrigacoes', '/schemas', '/prazos', '/sobre']) {
+    for (const path of ['/', '/mudancas', '/fontes', '/orgaos', '/obrigacoes', '/schemas', '/prazos', '/alertas', '/sobre']) {
       const response = await fetch(`${base}${path}`);
       assert.equal(response.status, 200, path);
       const html = await response.text();
@@ -184,7 +184,7 @@ test('public workspace renders evidenced snapshots, clear SOURCE_CHANGED status,
 test('Vercel rewrites dispatch public pages and APIs through the serverless gateway', async () => {
   const config = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
   const rewrites = config.rewrites;
-  for (const path of ['/', '/mudancas', '/fontes', '/orgaos', '/obrigacoes', '/schemas', '/prazos', '/sobre', '/admin']) {
+  for (const path of ['/', '/mudancas', '/fontes', '/orgaos', '/obrigacoes', '/schemas', '/prazos', '/alertas', '/sobre', '/admin']) {
     assert.ok(rewrites.some((rule) => rule.source === path && rule.destination.startsWith('/api/index?__page=')), path);
   }
   assert.ok(rewrites.some((rule) => rule.source === '/api/:path*' && rule.destination.includes('__path=:path*')));
