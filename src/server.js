@@ -367,14 +367,15 @@ async function listPublicChanges(db, params = new URLSearchParams()) {
   const kind = String(params.get('kind') || '').trim().toUpperCase();
   const status = String(params.get('status') || '').trim().toUpperCase();
   const reviewRequired = String(params.get('review_required') || '').trim().toLowerCase();
-  const cutoffIso = cutoff === null ? '' : new Date(cutoff).toISOString();
+  const cutoffIso = cutoff === null ? null : new Date(cutoff).toISOString();
+  const periodFilter = cutoffIso ? ' AND detected_at >= ?' : '';
   const changeRows = await db.prepare(`SELECT * FROM regulatory_changes
     WHERE is_demo = 0
       AND ((entity_type = 'SOURCE' AND change_level IN ('SOURCE_CHANGED','REGULATORY_CHANGE_CANDIDATE','REGULATORY_CHANGE_CONFIRMED')
             AND previous_snapshot_id IS NOT NULL AND current_snapshot_id IS NOT NULL)
         OR (change_level = 'LEGACY' AND review_status = 'CONFIRMED'))
-      AND (? = '' OR detected_at >= ?)
-    ORDER BY detected_at DESC, id`).all(cutoffIso, cutoffIso);
+      ${periodFilter}
+    ORDER BY detected_at DESC, id`).all(...(cutoffIso ? [cutoffIso] : []));
   const allRows = [];
   for (const row of changeRows) allRows.push(await enrichChange(db, row));
   const publicRows = [];
