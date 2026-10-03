@@ -126,7 +126,7 @@ test('public workspace renders evidenced snapshots, clear SOURCE_CHANGED status,
       assert.equal(response.status, 200, path);
       const html = await response.text();
       assert.match(html, /<html lang="pt-BR">/, path);
-      assert.match(html, /<meta name="robots" content="index,follow">/, path);
+      assert.match(html, /<meta name="robots" content="index,follow[^"]*">/, path);
       assert.match(html, /<link rel="canonical" href="http:\/\//, path);
       assert.match(html, /LCF RegTech/, path);
     }
@@ -167,11 +167,25 @@ test('public workspace renders evidenced snapshots, clear SOURCE_CHANGED status,
     assert.match(await internal.text(), /content="noindex,nofollow"/);
 
     const robots = await (await fetch(`${base}/robots.txt`)).text();
+    assert.match(robots, /User-agent: OAI-SearchBot/);
+    assert.match(robots, /User-agent: Google-Extended/);
+    assert.match(robots, /User-agent: PerplexityBot/);
     assert.match(robots, /Disallow: \/api\//);
     assert.match(robots, /Disallow: \/admin/);
+    assert.match(robots, /Sitemap: .*\/sitemap\.xml/);
     const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
     assert.match(sitemap, new RegExp(`/mudancas/${change.id}`));
+    assert.match(sitemap, new RegExp(`/fontes/${sourceId}`));
     assert.doesNotMatch(sitemap, /\/admin/);
+
+    const llms = await (await fetch(`${base}/llms.txt`)).text();
+    assert.match(llms, /# LCF RegTech/);
+    assert.match(llms, /## Main sections/);
+    assert.match(llms, new RegExp(`/fontes/${sourceId}`));
+
+    const feed = await (await fetch(`${base}/feed.xml`)).text();
+    assert.match(feed, /<rss version="2\.0">/);
+    assert.match(feed, new RegExp(`/mudancas/${change.id}`));
 
     const { response: apiResponse } = await json(base, '/api/public/overview');
     assert.match(apiResponse.headers.get('x-robots-tag'), /noindex/);
@@ -188,6 +202,8 @@ test('Vercel rewrites dispatch public pages and APIs through the serverless gate
     assert.ok(rewrites.some((rule) => rule.source === path && rule.destination.startsWith('/api/index?__page=')), path);
   }
   assert.ok(rewrites.some((rule) => rule.source === '/api/:path*' && rule.destination.includes('__path=:path*')));
+  assert.ok(rewrites.some((rule) => rule.source === '/llms.txt' && rule.destination.includes('__page=/llms.txt')));
+  assert.ok(rewrites.some((rule) => rule.source === '/feed.xml' && rule.destination.includes('__page=/feed.xml')));
 
   const originalEnv = {
     DATABASE_URL: process.env.DATABASE_URL,
