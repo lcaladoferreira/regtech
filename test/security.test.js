@@ -66,12 +66,13 @@ test('storage provider policy: durable providers in production, filesystem only 
 });
 
 test('HTTP mutations are gated by ADMIN_API_KEY and the API fails closed, never empty-ok, without a database', async (t) => {
-  const saved = { admin: process.env.ADMIN_API_KEY, cron: process.env.CRON_SECRET };
+  const saved = { admin: process.env.ADMIN_API_KEY, cron: process.env.CRON_SECRET, alertToken: process.env.ALERT_TOKEN_SECRET };
   process.env.ADMIN_API_KEY = 'integration-secret';
   process.env.CRON_SECRET = 'integration-cron';
   t.after(() => {
     if (saved.admin === undefined) delete process.env.ADMIN_API_KEY; else process.env.ADMIN_API_KEY = saved.admin;
     if (saved.cron === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = saved.cron;
+    if (saved.alertToken === undefined) delete process.env.ALERT_TOKEN_SECRET; else process.env.ALERT_TOKEN_SECRET = saved.alertToken;
   });
 
   const db = await openDatabase({ path: ':memory:' });
