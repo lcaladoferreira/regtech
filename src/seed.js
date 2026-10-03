@@ -644,7 +644,7 @@ export async function seedDatabase(db) {
 }
 
 export async function bootstrapOfficialCatalog(db) {
-  const catalogVersion = '2026-10-03.1';
+  const catalogVersion = '2026-10-03.2';
   const existing = await db.prepare("SELECT value FROM system_settings WHERE key = 'official_catalog_version'").get();
   if (existing?.value === catalogVersion) return { bootstrapped: false, reason: 'official_catalog_version exists', version: catalogVersion };
 
@@ -691,7 +691,93 @@ export async function bootstrapOfficialCatalog(db) {
     });
   }
 
+  const sourceIdCache = new Map();
+  const resolveLiveSourceId = async (seedSourceId) => {
+    if (!seedSourceId) return null;
+    if (sourceIdCache.has(seedSourceId)) return sourceIdCache.get(seedSourceId);
+    const spec = sources.find((row) => row.id === seedSourceId);
+    if (!spec) return null;
+    const candidates = [spec.source_url];
+    if (spec.source_url.includes('://www.planalto.gov.br/')) candidates.push(spec.source_url.replace('://www.planalto.gov.br/','://planalto.gov.br/'));
+    if (spec.source_url.includes('://planalto.gov.br/')) candidates.push(spec.source_url.replace('://planalto.gov.br/','://www.planalto.gov.br/'));
+    let found = null;
+    for (const url of candidates) {
+      found = await db.prepare('SELECT id FROM regulatory_sources WHERE source_url = ? ORDER BY enabled DESC LIMIT 1').get(url);
+      if (found?.id) break;
+    }
+    sourceIdCache.set(seedSourceId, found?.id || null);
+    return found?.id || null;
+  };
+
+  const sourceLinksSeed = [
+    ['src-bcb-3040-page','obl-bcb-scr-3040','SOURCE_DISCOVERY'],
+    ['src-bcb-3040-layout','obl-bcb-scr-3040','LAYOUT'],
+    ['src-bcb-3040-manual','obl-bcb-scr-3040','REQUIREMENT'],
+    ['src-bcb-3040-deadlines','obl-bcb-scr-3040','DEADLINE'],
+    ['src-bcb-4111-manual','obl-bcb-4111','REQUIREMENT'],
+    ['src-cvm-res80','obl-cvm-fre','REQUIREMENT'],
+    ['src-cvm-res80','obl-cvm-cadastral','REQUIREMENT'],
+    ['src-susep-responsaveis','obl-susep-fip','REQUIREMENT'],
+    ['src-susep-manual','obl-susep-rcomp','LAYOUT'],
+    ['src-susep-openinsurance','obl-susep-open-insurance','TECHNICAL_SCOPE'],
+    ['src-anpd-cis','obl-anpd-cis','PROCEDURE'],
+    ['src-anpd-res15','obl-anpd-cis','NORMATIVE_BASIS'],
+    ['src-coaf-faq','obl-coaf-records','INTERPRETATION'],
+    ['src-coaf-faq','obl-coaf-comms','SYSTEM_AND_SCOPE'],
+    ['src-coaf-law','obl-coaf-records','NORMATIVE_BASIS'],
+    ['src-coaf-law','obl-coaf-comms','NORMATIVE_BASIS'],
+    ['src-rfb-decripto','obl-rfb-decripto','LAYOUT'],
+  ];
+  for (const [seedSourceId, entityId, relation] of sourceLinksSeed) {
+    const sourceId = await resolveLiveSourceId(seedSourceId);
+    if (sourceId) await stableInsert(db,'regulatory_source_links',{source_id:sourceId,entity_type:'OBLIGATION',entity_id:entityId,relation});
+  }
+
+  const requirementsSeed = [
+    ['req-3040-report','obl-bcb-scr-3040','REPORTING','Remeter mensalmente o Documento 3040 com informações de risco de crédito conforme leiaute e instruções oficiais.','src-bcb-3040-manual',null],
+    ['req-3040-deadline','obl-bcb-scr-3040','DEADLINE','Aplicar o calendário de prazo oficial do BCB para o período de referência; não derivar datas sem a fonte/calendário correspondente.','src-bcb-3040-deadlines',null],
+    ['req-4111-daily','obl-bcb-4111','REPORTING','Apurar e remeter diariamente os saldos contábeis cobertos para a população indicada nas instruções.','src-bcb-4111-manual','2025-01-02'],
+    ['req-4111-xml','obl-bcb-4111','FORMAT','Gerar arquivo XML pelo STA usando o código ACOS111, conforme manual do documento.','src-bcb-4111-manual','2025-01-02'],
+    ['req-cvm-fre','obl-cvm-fre','REPORTING','Entregar anualmente Formulário de Referência atualizado no sistema eletrônico da CVM.','src-cvm-res80',null],
+    ['req-cvm-fre-deadline','obl-cvm-fre','DEADLINE','Calcular até cinco meses do encerramento do exercício social específico do emissor.','src-cvm-res80',null],
+    ['req-cvm-cad-update','obl-cvm-cadastral','GOVERNANCE','Atualizar dados cadastrais até sete dias úteis depois de fato que os altere; confirmar anualmente até 31 de maio.','src-cvm-res80',null],
+    ['req-susep-fip','obl-susep-fip','REPORTING','Transmitir FIP mensal em MDB por FIPSUSEP para os sujeitos listados na fonte oficial.','src-susep-responsaveis',null],
+    ['req-susep-rcomp','obl-susep-rcomp','REPORTING','Enviar arquivos R_COMP.DBF e S_COMP.DBF até 31 de março, compactados em ZIP, conforme Manual 02/2026.','src-susep-manual',null],
+    ['req-susep-openinsurance','obl-susep-open-insurance','TECHNICAL_SCOPE','Compartilhar dados e serviços aplicáveis por APIs padronizadas, observando o escopo mínimo e domínios definidos nos normativos e no Manual de Escopo v6.7.','src-susep-openinsurance',null],
+    ['req-anpd-cis','obl-anpd-cis','INCIDENT_REPORTING','Comunicar incidente confirmado com dados pessoais e risco/dano relevante em três dias úteis, ressalvada regra específica.','src-anpd-cis',null],
+    ['req-coaf-records','obl-coaf-records','RETENTION','Identificar clientes e manter registros; prazo mínimo de guarda informado pelo COAF: cinco anos, sem afastar prazos setoriais adicionais.','src-coaf-faq',null],
+    ['req-coaf-comm','obl-coaf-comms','SUBMISSION','Avaliar e encaminhar comunicações pelo Siscoaf quando aplicável; validar prazo conforme regulamento do segmento.','src-coaf-faq',null],
+    ['req-rfb-decripto','obl-rfb-decripto','FORMAT','Gerar arquivo texto UTF-8 delimitado por pipe conforme leiaute DeCripto; vigência inicial informada pelo manual: 01/07/2026.','src-rfb-decripto','2026-07-01'],
+  ];
+  for (const [id,obligation_id,requirement_type,description,seedSourceId,effective_from] of requirementsSeed) {
+    const spec = sources.find((item) => item.id === seedSourceId);
+    const source_id = await resolveLiveSourceId(seedSourceId);
+    await stableInsert(db,'requirements',{
+      id,obligation_id,requirement_type,description,
+      source_reference:spec?.source_url || 'UNKNOWN',source_id,
+      effective_from,effective_to:null,status:'ACTIVE',is_demo:0
+    });
+  }
+
+  for (const document of documents) {
+    const source_id = await resolveLiveSourceId(document.source_id);
+    await stableInsert(db,'regulatory_documents',{...document,source_id,is_demo:0});
+  }
+
+  const deadlineSeed = [
+    ['deadline-bcb-4111-20261002','obl-bcb-4111','2026-10-02','2026-10-07','OFFICIAL','https://www.bcb.gov.br/content/estabilidadefinanceira/Documents/Leiaute_de_documentos/saldosDiariosInstrucoesPreenchimentoV2.pdf','UPCOMING','Finance Data','Data-base 2026-10-02 + 3º dia útil subsequente. Fonte do prazo: manual 4111.'],
+    ['deadline-bcb-3040-202609','obl-bcb-scr-3040','2026-09','2026-10-14','OFFICIAL','https://www.bcb.gov.br/content/estabilidadefinanceira/supervisao/Prazos_Nao_contabeis_Cosif.pdf','UPCOMING','Regulatory Reporting','Data-base 2026-09; vencimento 14/10/2026 reproduzido do calendário oficial BCB 2026.'],
+    ['deadline-susep-rcomp-2026','obl-susep-rcomp','2026','2027-03-31','OFFICIAL','https://www.gov.br/susep/pt-br/servicos/mercado/enviar-dados/arquivos/manual_orientacao_envio_dados_Mar2026.pdf/@@display-file/file','UPCOMING','Insurance Reporting','Ano de dados 2026; manual SUSEP 02/2026 informa entrega anual até 31 de março.'],
+  ];
+  for (const [id,obligation_id,reference_period,due_date,deadline_type,source_url,status,owner,calculation_basis] of deadlineSeed) {
+    await stableInsert(db,'regulatory_deadlines',{id,obligation_id,reference_period,due_date,deadline_type,source_url,status,owner,calculation_basis,is_demo:0});
+  }
+
   const obligationCount = (await db.prepare('SELECT COUNT(*) AS n FROM regulatory_obligations WHERE is_demo = 0').get()).n;
+  const requirementCount = (await db.prepare('SELECT COUNT(*) AS n FROM requirements WHERE is_demo = 0').get()).n;
+  const documentCount = (await db.prepare('SELECT COUNT(*) AS n FROM regulatory_documents WHERE is_demo = 0').get()).n;
+  const linkCount = (await db.prepare("SELECT COUNT(*) AS n FROM regulatory_source_links WHERE entity_type='OBLIGATION'").get()).n;
+
   await db.prepare(`INSERT INTO system_settings (key,value,updated_at) VALUES (?,?,?)
     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`)
     .run('official_catalog_version', catalogVersion, collectedAt);
@@ -701,8 +787,8 @@ export async function bootstrapOfficialCatalog(db) {
     started_at: collectedAt,
     finished_at: collectedAt,
     status: 'SUCCEEDED',
-    records_processed: obligations.length,
-    records_created: obligations.length,
+    records_processed: obligations.length + requirementsSeed.length + documents.length + sourceLinksSeed.length + deadlineSeed.length,
+    records_created: obligations.length + requirementsSeed.length + documents.length,
     records_updated: 0,
     errors: null,
     result_json: JSON.stringify({
@@ -710,9 +796,18 @@ export async function bootstrapOfficialCatalog(db) {
       source: 'curated source-backed regulatory catalog already maintained in src/seed.js',
       synthetic_fixtures_imported: false,
       obligation_count: Number(obligationCount || 0),
+      requirement_count: Number(requirementCount || 0),
+      document_count: Number(documentCount || 0),
+      source_link_count: Number(linkCount || 0),
     }),
   });
-  return { bootstrapped: true, version: catalogVersion, obligations: Number(obligationCount || 0) };
+  return {
+    bootstrapped: true, version: catalogVersion,
+    obligations: Number(obligationCount || 0),
+    requirements: Number(requirementCount || 0),
+    documents: Number(documentCount || 0),
+    source_links: Number(linkCount || 0),
+  };
 }
 
 function hash(text) {
