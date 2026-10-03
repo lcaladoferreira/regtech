@@ -36,7 +36,7 @@ test('migration and seed create a generic multi-regulator inventory with explici
     assert.equal(await count(db, 'regulatory_fields'), 62);
     assert.equal(await count(db, 'regulatory_cases'), 6);
     assert.equal(await count(db, 'regulatory_source_snapshots'), 0, 'curated excerpts must not be misreported as raw source snapshots');
-    assert.equal(await count(db, 'schema_migrations'), 4, 'sqlite migrations 001–004, including public alerts, are tracked');
+    assert.equal(await count(db, 'schema_migrations'), 5, 'sqlite migrations 001–005, including daily-only public alerts, are tracked');
     assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM regulatory_sources WHERE collected_at IS NOT NULL').get()).n, 0, 'seeded excerpt verification is not recorded as a raw fetch time');
     assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM regulatory_sources WHERE excerpt_verified_at IS NOT NULL').get()).n, 13);
     assert.deepEqual(await db.prepare('PRAGMA foreign_key_check').all(), []);
