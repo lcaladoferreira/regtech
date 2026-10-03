@@ -112,12 +112,14 @@ test('HTTP mutations are gated by ADMIN_API_KEY and the API fails closed, never 
     process.env.ALERT_TOKEN_SECRET = 'alert-test-secret';
     const subscribe = await fetch(`${base}/api/public/alerts/subscribe`, {
       method:'POST', headers:{'content-type':'application/json'},
-      body:JSON.stringify({ email:'alerts@example.com', consent:true, authorities:['BCB'], topics:['LAYOUTS'], delivery_mode:'DAILY' }),
+      body:JSON.stringify({ email:'alerts@example.com', consent:true, authorities:['BCB'], topics:['LAYOUTS'], delivery_mode:'IMMEDIATE' }),
     });
     assert.equal(subscribe.status, 202, 'public double-opt-in signup must not require admin auth');
     const subscription = await subscribe.json();
     assert.equal(subscription.status, 'PENDING_CONFIRMATION');
-    assert.equal((await db.prepare("SELECT status FROM alert_subscribers WHERE email='alerts@example.com'").get()).status, 'PENDING');
+    const storedAlert = await db.prepare("SELECT status,delivery_mode FROM alert_subscribers WHERE email='alerts@example.com'").get();
+    assert.equal(storedAlert.status, 'PENDING');
+    assert.equal(storedAlert.delivery_mode, 'DAILY', 'free public signup is forced to daily even if IMMEDIATE is requested');
   } finally {
     await new Promise((resolveClose) => server.close(resolveClose));
     await closeDatabase(db);
