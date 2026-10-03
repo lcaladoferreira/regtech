@@ -153,13 +153,13 @@ test('public workspace renders evidenced snapshots, clear SOURCE_CHANGED status,
     const candidatePage = await fetch(`${base}/mudancas/${encodeURIComponent(candidate.id)}`);
     assert.equal(candidatePage.status, 200);
     const candidateHtml = await candidatePage.text();
-    assert.match(candidateHtml, /CANDIDATO · REVISÃO HUMANA NECESSÁRIA/);
-    assert.match(candidateHtml, /revisão humana/i);
+    assert.match(candidateHtml, /POSSÍVEL MUDANÇA REGULATÓRIA/);
+    assert.match(candidateHtml, /análise/i);
     const sourcePage = await fetch(`${base}/fontes/${encodeURIComponent(sourceId)}`);
     assert.equal(sourcePage.status, 200);
     const sourceHtml = await sourcePage.text();
     assert.match(sourceHtml, /SOURCE_CHANGED · CONTEÚDO DA FONTE/);
-    assert.match(sourceHtml, /CANDIDATO · REVISÃO HUMANA NECESSÁRIA/);
+    assert.match(sourceHtml, /POSSÍVEL MUDANÇA REGULATÓRIA/);
 
     const internal = await fetch(`${base}/admin`);
     assert.equal(internal.status, 200);
