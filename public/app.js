@@ -7,6 +7,7 @@ const NAV_GROUPS = [
     ['/obligations', 'Obrigações', 'OB'],
     ['/schemas', 'Schemas', 'SC'],
     ['/calendar', 'Prazos', 'PR'],
+    ['/alerts', 'Alertas', 'AL'],
     ['/about', 'Sobre', 'SB'],
   ] },
 ];
@@ -33,7 +34,7 @@ const ADMIN_NAV_GROUPS = [
   ] },
 ];
 
-const PUBLIC_ROUTES = new Set(['/dashboard', '/changes', '/sources', '/regulators', '/obligations', '/schemas', '/calendar', '/about']);
+const PUBLIC_ROUTES = new Set(['/dashboard', '/changes', '/sources', '/regulators', '/obligations', '/schemas', '/calendar', '/alerts', '/about']);
 const LCF_CONSULTING_SITE = 'https://www.lcfconsulting.com.br/';
 
 const PAGE_META = {
@@ -51,6 +52,7 @@ const PAGE_META = {
   '/lineage': ['Data lineage', 'Área interna: caminhos de dados de referência'],
   '/dq': ['Data quality', 'Área interna: verificações sobre fixtures DEMO DATA'],
   '/calendar': ['Prazos oficiais', 'Datas oficiais publicadas, com fonte e período'],
+  '/alerts': ['Alertas', 'Receba mudanças detectadas em fontes oficiais por e-mail'],
   '/submissions': ['Submission runs', 'Área interna: artefatos locais, sem envio ao regulador'],
   '/controls': ['Control library', 'Área interna: controles e evidências de demonstração'],
   '/evidence': ['Evidence register', 'Área interna: registro de metadados e evidências'],
@@ -99,7 +101,7 @@ function routeState() {
   }
   const aliases = {
     '/mudancas': '/changes', '/fontes': '/sources', '/orgaos': '/regulators',
-    '/obrigacoes': '/obligations', '/prazos': '/calendar', '/sobre': '/about',
+    '/obrigacoes': '/obligations', '/prazos': '/calendar', '/alertas': '/alerts', '/sobre': '/about',
   };
   return { path: aliases[pathname.replace(/\/$/, '')] || pathname, params };
 }
@@ -119,6 +121,7 @@ function publicRouteUrl(path, params) {
   else if (path === '/obligations') target = id ? `/obrigacoes/${encodeURIComponent(id)}` : '/obrigacoes';
   else if (path === '/schemas') target = id ? `/schemas/${encodeURIComponent(id)}` : '/schemas';
   else if (path === '/calendar') target = '/prazos';
+  else if (path === '/alerts') target = '/alertas';
   else if (path === '/about') target = '/sobre';
   return `${target}${query.size ? `?${query.toString()}` : ''}`;
 }
@@ -292,7 +295,7 @@ function publicShellMarkup(route) {
   const links = [
     ['/dashboard', 'Visão geral', '/'], ['/changes', 'Mudanças', '/mudancas'], ['/sources', 'Fontes oficiais', '/fontes'],
     ['/regulators', 'Órgãos', '/orgaos'], ['/obligations', 'Obrigações', '/obrigacoes'], ['/schemas', 'Schemas', '/schemas'],
-    ['/calendar', 'Prazos', '/prazos'], ['/about', 'Sobre', '/sobre'],
+    ['/calendar', 'Prazos', '/prazos'], ['/alerts', 'Alertas', '/alertas'], ['/about', 'Sobre', '/sobre'],
   ];
   const nav = links.map(([path, label, href]) => `<a class="public-nav-link ${route.path === path ? 'active' : ''}" href="${href}" ${route.path === path ? 'aria-current="page"' : ''}>${esc(label)}</a>`).join('');
   const toast = state.toast ? `<div class="toast ${esc(state.toast.type)}" role="status">${esc(state.toast.message)}</div>` : '';
@@ -413,6 +416,7 @@ async function renderRoute(route) {
     case '/regulators': return renderPublicRegulators(route.params);
     case '/changes': return route.params.get('id') ? renderPublicChangeDetail(route.params.get('id')) : renderPublicChanges(route.params);
     case '/schemas': return route.params.get('id') ? renderPublicSchemaDetail(route.params.get('id')) : renderPublicSchemas(route.params);
+    case '/alerts': return renderPublicAlerts();
     case '/about': return renderPublicAbout();
     case '/admin': return renderAdminHome();
     case '/norm-diff': return renderNormDiff();
@@ -524,7 +528,7 @@ async function renderPublicDashboard() {
     ? `<div class="live-note">${publicStatusLabel(overview)}<span>${overview.raw_snapshots ? `${number(overview.raw_snapshots)} snapshot(s) imutáveis registrados` : 'Ainda não há snapshot bruto; não exibimos alterações sem evidência.'}</span></div>`
     : `<div class="live-note">${publicStatusLabel(overview)}<span>Dados sintéticos são mantidos fora da experiência pública; capturas verificadas exigem bytes e SHA-256 armazenados.</span></div>`;
   return `<main class="public-main">
-    <section class="public-hero"><p class="eyebrow">LCF REGTECH <span>·</span> REGULATORY DATA INTELLIGENCE</p><h1>O que mudou na regulação?</h1><p class="hero-lede">Saiba o que mudou nas fontes regulatórias oficiais — e onde essa mudança pode gerar impacto.</p><p class="hero-detail">Monitoramento contínuo de normas, manuais, layouts e documentos oficiais, com histórico de versões e evidências para análise regulatória e técnica.</p><div class="hero-actions"><a class="public-button primary" href="/mudancas">Ver mudanças recentes</a><a class="public-button" href="/fontes">Explorar fontes oficiais</a></div><p class="brand-byline">by <a href="${esc(lcfConsultingUrl('home'))}" target="_blank" rel="noopener noreferrer">LCF Consulting</a></p>${heroNote}</section>
+    <section class="public-hero"><p class="eyebrow">LCF REGTECH <span>·</span> REGULATORY DATA INTELLIGENCE</p><h1>O que mudou na regulação?</h1><p class="hero-lede">Saiba o que mudou nas fontes regulatórias oficiais — e onde essa mudança pode gerar impacto.</p><p class="hero-detail">Monitoramento contínuo de normas, manuais, layouts e documentos oficiais, com histórico de versões e evidências para análise regulatória e técnica.</p><div class="hero-actions"><a class="public-button primary" href="/mudancas">Ver mudanças recentes</a><a class="public-button" href="/fontes">Explorar fontes oficiais</a><a class="public-button" href="/alertas">Receber alertas</a></div><p class="brand-byline">by <a href="${esc(lcfConsultingUrl('home'))}" target="_blank" rel="noopener noreferrer">LCF Consulting</a></p>${heroNote}</section>
     <section class="public-section"><div class="section-heading"><div><p class="eyebrow">EVIDÊNCIA PÚBLICA</p><h2>Mudanças recentes</h2><p>Detecções vinculadas a snapshots. Mudança no conteúdo não significa automaticamente mudança de regra.</p></div><a class="text-link" href="/mudancas">Ver histórico completo →</a></div><div class="public-change-list">${recent}</div></section>
     <section class="public-section"><div class="section-heading"><div><p class="eyebrow">COBERTURA</p><h2>Órgãos e fontes oficiais</h2><p>A cobertura apresentada reflete o que está persistido no registro; não implica cobertura normativa completa.</p></div><a class="text-link" href="/orgaos">Explorar órgãos →</a></div><div class="authority-grid">${authorities}</div></section>
     <section class="public-section"><div class="section-heading"><div><p class="eyebrow">MÉTODO</p><h2>Da fonte à evidência</h2><p>Capturas, versões e comparações ficam ligadas à fonte original e à análise humana.</p></div></div><ol class="process-flow"><li><span>01</span><strong>Fonte oficial</strong></li><li><span>02</span><strong>Captura</strong></li><li><span>03</span><strong>Snapshot</strong></li><li><span>04</span><strong>Comparação</strong></li><li><span>05</span><strong>Mudança</strong></li><li><span>06</span><strong>Análise</strong></li></ol></section>
@@ -693,6 +697,17 @@ async function renderPublicDeadlines() {
   const cards = deadlines.map((item) => `<article class="public-source-card"><span class="public-badge official">PRAZO OFICIAL</span><h2>${esc(item.regulator_acronym)} · ${esc(item.obligation_code)} · ${esc(item.obligation_title)}</h2><div class="fact-row"><span>Período ${esc(item.reference_period)}</span><span>Vencimento ${esc(item.due_date)}</span><span>Status ${esc(item.status)}</span></div><p>${esc(item.calculation_basis || 'Base do prazo não informada')}</p>${item.source_url ? extLink(item.source_url, 'Ver fonte oficial do prazo') : '<p>Fonte oficial não disponível</p>'}<p><a href="/obrigacoes/${encodeURIComponent(item.obligation_id)}">Consultar obrigação relacionada →</a></p></article>`).join('');
   publicMeta('Prazos regulatórios oficiais | LCF RegTech', 'Prazos oficiais publicados com período, obrigação relacionada e evidência da fonte.', '/prazos');
   return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · PRAZOS OFICIAIS</p><h1>Prazos regulatórios publicados</h1><p>Somente registros oficiais com base identificada. Datas internas de planejamento não são exibidas nesta área pública.</p></header><div class="public-source-list">${cards || '<div class="public-empty"><strong>Nenhum prazo oficial comprovado está disponível.</strong><p>Nenhuma data é inferida para preencher a página.</p></div>'}</div></main>`;
+}
+
+async function renderPublicAlerts() {
+  const config = await api('/api/public/alerts/config');
+  const authorityOptions = config.authorities.map((item) => `<label class="alert-choice"><input type="checkbox" name="authorities" value="${esc(item.id)}"><span><strong>${esc(item.id)}</strong><small>${esc(item.name)}</small></span></label>`).join('');
+  const topicOptions = config.topics.map((item) => `<label class="alert-choice"><input type="checkbox" name="topics" value="${esc(item.id)}" ${item.id === 'ALL' ? 'checked' : ''}><span>${esc(item.label)}</span></label>`).join('');
+  publicMeta('Alertas regulatórios | LCF RegTech', 'Receba por e-mail mudanças detectadas em fontes regulatórias oficiais monitoradas pelo LCF RegTech.', '/alertas');
+  const channelNotice = config.email_delivery_configured
+    ? '<div class="public-notice live"><strong>CANAL DE E-MAIL ATIVO.</strong> A inscrição exige confirmação por e-mail antes do primeiro alerta.</div>'
+    : '<div class="public-notice"><strong>CANAL DE E-MAIL EM CONFIGURAÇÃO.</strong> O formulário já está disponível, mas a confirmação só será enviada quando o provedor de e-mail estiver configurado.</div>';
+  return `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · ALERTAS</p><h1>Receba mudanças regulatórias no seu e-mail</h1><p>Escolha órgãos e temas. Os alertas são disparados a partir de mudanças persistidas entre snapshots oficiais.</p></header>${channelNotice}<section class="public-section alert-subscribe-panel"><form class="alert-subscribe-form" data-form="public-alert-subscribe"><label class="alert-email">E-mail<input type="email" name="email" required autocomplete="email" placeholder="voce@empresa.com"></label><fieldset><legend>Órgãos</legend><p class="source-boundary">Se nenhum órgão for marcado, o cadastro acompanha todos.</p><div class="alert-choice-grid">${authorityOptions}</div></fieldset><fieldset><legend>Temas</legend><div class="alert-choice-grid">${topicOptions}</div></fieldset><fieldset><legend>Frequência</legend><div class="alert-choice-grid"><label class="alert-choice"><input type="radio" name="delivery_mode" value="IMMEDIATE" checked><span><strong>Assim que detectado</strong><small>Após o próximo ciclo de coleta.</small></span></label><label class="alert-choice"><input type="radio" name="delivery_mode" value="DAILY"><span><strong>Resumo diário</strong><small>Uma consolidação das mudanças do período.</small></span></label></div></fieldset><label class="alert-consent"><input type="checkbox" name="consent" required><span>Quero receber alertas do LCF RegTech por e-mail e posso cancelar a qualquer momento.</span></label><button class="public-button primary" type="submit">RECEBER ALERTAS</button><div class="alert-form-status" aria-live="polite"></div></form></section><section class="public-section"><h2>O que você recebe</h2><div class="fact-grid"><div><span>Gatilho</span><strong>Mudança real entre snapshots</strong></div><div><span>Evidência</span><strong>Fonte oficial + histórico</strong></div><div><span>Controle</span><strong>Sem alertas duplicados</strong></div></div></section>${consultingCta('Precisa de alertas aplicados à sua organização?', 'A LCF Consulting transforma o alerta público em monitoramento customizado, conectado a processos, dados, sistemas e controles específicos.', 'FALAR COM A LCF CONSULTING', 'alerts')}</main>`;
 }
 
 function renderPublicAbout() {
@@ -1053,7 +1068,8 @@ async function handleSubmit(event) {
   const type = form.dataset.form;
   if (!type && form.id !== 'global-search-form') return;
   event.preventDefault();
-  const values = Object.fromEntries(new FormData(form).entries());
+  const formData = new FormData(form);
+  const values = Object.fromEntries(formData.entries());
   try {
     if (form.id === 'global-search-form' || type === 'global-search-page') {
       const query=String(values.q||'').trim();
@@ -1064,6 +1080,20 @@ async function handleSubmit(event) {
     if (type === 'public-change-filter') { navigate('/changes',values); return; }
     if (type === 'public-source-filter') { navigate('/sources',values); return; }
     if (type === 'public-schema-filter') { navigate('/schemas',values); return; }
+    if (type === 'public-alert-subscribe') {
+      const payload = {
+        email: String(values.email || '').trim(),
+        authorities: formData.getAll('authorities').map(String),
+        topics: formData.getAll('topics').map(String),
+        delivery_mode: String(values.delivery_mode || 'IMMEDIATE'),
+        consent: values.consent === 'on',
+      };
+      const result = await api('/api/public/alerts/subscribe', { method:'POST', body:payload });
+      const status = form.querySelector('.alert-form-status');
+      if (status) status.innerHTML = `<div class="public-notice ${result.confirmation_sent ? 'live' : ''}"><strong>${result.confirmation_sent ? 'CONFIRMAÇÃO ENVIADA.' : 'CADASTRO REGISTRADO.'}</strong> ${esc(result.message || '')}</div>`;
+      if (result.confirmation_sent) form.reset();
+      return;
+    }
     if (type === 'admin-key') {
       const key = String(values.admin_key || '').trim();
       try {
