@@ -13,6 +13,10 @@ import { generateSubmission, validateSubmission, runDemoPipeline, readArtifact, 
 import { assertAdmin, assertCronOrAdmin, AuthError } from './auth.js';
 import { createStorage } from './storage.js';
 import { ADAPTERS, syncOfficialRegistry } from './sources/index.js';
+import {
+  alertEmailConfigured, publicAlertConfig, subscribeToAlerts, confirmAlertSubscription,
+  unsubscribeAlertSubscription, dispatchImmediateAlerts, dispatchDailyAlerts,
+} from './alerts.js';
 
 const here = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const publicRoot = resolve(here, 'public');
@@ -24,7 +28,7 @@ const CHANGE_TYPES = new Set([
   'DEADLINE_CHANGED','POPULATION_CHANGED','FORMAT_CHANGED','OBLIGATION_ADDED','DOCUMENTATION_CHANGED','SOURCE_HASH_CHANGED',
 ]);
 // Stateless computation endpoints that mutate nothing and therefore stay public.
-const OPEN_MUTATIONS = new Set(['/api/norm-diff/compare']);
+const OPEN_MUTATIONS = new Set(['/api/norm-diff/compare', '/api/public/alerts/subscribe']);
 
 const ROUTE_META = {
   '/dashboard': ['Overview', 'Workspace intelligence'],
@@ -109,11 +113,13 @@ export async function handleApi(req, res, db, url, requestId, context = {}) {
   // Authentication boundary: every mutation requires the admin bearer secret; the collection
   // endpoint additionally accepts CRON_SECRET so Vercel Cron can trigger it. GETs stay public.
   const isCollectPath = pathname === '/api/jobs/collect' || pathname === '/api/jobs/collect_sources';
+  const isAlertCronPath = pathname === '/api/jobs/alerts/daily';
+  const isCronPath = isCollectPath || isAlertCronPath;
   const requiresAuth = (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method) && !OPEN_MUTATIONS.has(pathname))
-    || (method === 'GET' && isCollectPath); // the GET form is the Vercel-Cron trigger — equally sensitive
+    || (method === 'GET' && isCronPath); // Vercel-Cron GET triggers are equally sensitive
   if (requiresAuth) {
     try {
-      if (isCollectPath) assertCronOrAdmin(req, { production, adminKey: env.ADMIN_API_KEY, cronSecret: env.CRON_SECRET });
+      if (isCronPath) assertCronOrAdmin(req, { production, adminKey: env.ADMIN_API_KEY, cronSecret: env.CRON_SECRET });
       else assertAdmin(req, { production, adminKey: env.ADMIN_API_KEY });
     } catch (error) {
       return sendJson(res, error.statusCode || 401, { error: error.code || 'UNAUTHORIZED', message: error.message, request_id: requestId, timestamp: new Date().toISOString() });
@@ -136,6 +142,8 @@ export async function handleApi(req, res, db, url, requestId, context = {}) {
   const publicSchemaMatch = pathname.match(/^\/api\/public\/schemas\/([^/]+)$/);
   if (method === 'GET' && publicSchemaMatch) return sendJson(res, 200, await publicSchemaDetail(db, publicSchemaMatch[1]));
   if (method === 'GET' && pathname === '/api/public/deadlines') return sendJson(res, 200, await listPublicDeadlines(db, url.searchParams));
+  if (method === 'GET' && pathname === '/api/public/alerts/config') return sendJson(res, 200, await publicAlertConfig(db, env));
+  if (method === 'POST' && pathname === '/api/public/alerts/subscribe') return sendJson(res, 202, await subscribeToAlerts(db, await readJson(req), env));
   if (method === 'GET' && pathname === '/api/regulators') return sendJson(res, 200, await listRegulators(db));
   if (method === 'GET' && pathname === '/api/regulations') return sendJson(res, 200, await listRegulations(db));
   if (method === 'GET' && pathname === '/api/obligations') return sendJson(res, 200, await listObligations(db, url.searchParams));
@@ -191,7 +199,14 @@ export async function handleApi(req, res, db, url, requestId, context = {}) {
   if (method === 'GET' && pathname === '/api/jobs') return sendJson(res, 200, await listJobs(db));
   if ((method === 'POST' || method === 'GET') && pathname === '/api/jobs/collect') {
     const body = method === 'POST' ? await readJson(req).catch(() => ({})) : {};
-    return sendJson(res, 200, await runCollectSources(db, { limit: body.limit ?? 25, dueOnly: body.dueOnly !== false, trigger: 'cron', ...body }));
+    const collection = await runCollectSources(db, { limit: body.limit ?? 25, dueOnly: body.dueOnly !== false, trigger: 'cron', ...body });
+    let alerts;
+    try { alerts = await dispatchImmediateAlerts(db, env); }
+    catch (error) { alerts = { status:'FAILED', error:String(error?.message || error) }; }
+    return sendJson(res, 200, { ...collection, alert_dispatch: alerts });
+  }
+  if ((method === 'POST' || method === 'GET') && pathname === '/api/jobs/alerts/daily') {
+    return sendJson(res, 200, await dispatchDailyAlerts(db, env));
   }
   if (method === 'POST' && pathname === '/api/jobs/collect_sources') return sendJson(res, 200, await runCollectSources(db, { trigger: 'admin', ...(await readJson(req).catch(() => ({}))) }));
   const runJobMatch = pathname.match(/^\/api\/jobs\/([a-z_]+)\/run$/);
@@ -231,6 +246,8 @@ async function healthPayload(db, storage) {
     snapshots,
     open_ingestion_errors: openErrors,
     upcoming_official_deadlines: (await db.prepare("SELECT COUNT(*) AS n FROM regulatory_deadlines WHERE deadline_type = 'OFFICIAL' AND due_date >= ?").get(today)).n,
+    alert_email_configured: alertEmailConfigured(process.env),
+    active_alert_subscribers: (await db.prepare("SELECT COUNT(*) AS n FROM alert_subscribers WHERE status = 'ACTIVE'").get()).n,
     time: new Date().toISOString(),
   };
 }
