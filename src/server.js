@@ -1494,15 +1494,36 @@ export async function handlePublicPage(req, res, db, url, requestId = '') {
   if (method !== 'GET' && method !== 'HEAD') return false;
 
   if (pathname === '/robots.txt') {
+    const privateRules = ['Disallow: /api/', 'Disallow: /admin', 'Disallow: /system/', 'Disallow: /jobs', 'Disallow: /errors', 'Disallow: /internal'];
+    const preferredBots = [
+      'OAI-SearchBot', 'ChatGPT-User', 'GPTBot',
+      'Googlebot', 'Google-Extended',
+      'PerplexityBot', 'Perplexity-User',
+      'bingbot', 'Applebot', 'DuckAssistBot',
+      'ClaudeBot', 'Claude-SearchBot', 'Claude-User',
+    ];
+    const groups = preferredBots.flatMap((bot) => [`User-agent: ${bot}`, 'Allow: /', ...privateRules, '']);
     const body = [
-      'User-agent: *', 'Allow: /', 'Disallow: /api/', 'Disallow: /admin', 'Disallow: /system/',
-      'Disallow: /jobs', 'Disallow: /errors', 'Disallow: /internal', `Sitemap: ${origin}/sitemap.xml`, '',
+      ...groups,
+      'User-agent: *', 'Allow: /', ...privateRules, '',
+      `Sitemap: ${origin}/sitemap.xml`,
+      `# Machine-readable site guide: ${origin}/llms.txt`,
+      `# Change feed: ${origin}/feed.xml`,
+      '',
     ].join('\n');
     return sendPublicResponse(req, res, 200, 'text/plain; charset=utf-8', body, { 'X-Robots-Tag': 'noindex' });
   }
   if (pathname === '/sitemap.xml') {
     const body = await buildSitemapXml(db, origin);
     return sendPublicResponse(req, res, 200, 'application/xml; charset=utf-8', body, { 'X-Robots-Tag': 'noindex' });
+  }
+  if (pathname === '/llms.txt') {
+    const body = await buildLlmsTxt(db, origin);
+    return sendPublicResponse(req, res, 200, 'text/plain; charset=utf-8', body, { 'X-Robots-Tag': 'noindex' });
+  }
+  if (pathname === '/feed.xml') {
+    const body = await buildChangeFeedXml(db, origin);
+    return sendPublicResponse(req, res, 200, 'application/rss+xml; charset=utf-8', body, { 'X-Robots-Tag': 'noindex' });
   }
   if (pathname === '/admin') {
     const html = publicDocument({
@@ -1841,12 +1862,38 @@ function publicShell(content, activePath, origin) {
 }
 
 function publicDocument({ title, description, canonical, origin, content, type = 'website', robots = 'index,follow', structuredData = null }) {
-  const jsonLd = structuredData ? `<script type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, '\\u003c')}</script>` : '';
+  const pageData = structuredData
+    ? { ...structuredData, '@context': undefined }
+    : null;
+  const graph = [
+    {
+      '@type': 'Organization',
+      '@id': `${origin}/#organization`,
+      name: 'LCF Consulting',
+      url: LCF_CONSULTING_SITE,
+      brand: { '@type': 'Brand', name: 'LCF RegTech' },
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${origin}/#website`,
+      name: 'LCF RegTech',
+      alternateName: 'LCF Regulatory Data Intelligence',
+      url: `${origin}/`,
+      inLanguage: 'pt-BR',
+      publisher: { '@id': `${origin}/#organization` },
+      description: 'Plataforma pública de inteligência regulatória com monitoramento de fontes oficiais, snapshots, mudanças, obrigações, schemas, layouts e prazos.',
+    },
+    ...(pageData ? [{ ...pageData, isPartOf: pageData.isPartOf || { '@id': `${origin}/#website` } }] : []),
+  ];
+  const jsonLd = `<script type="application/ld+json">${JSON.stringify({ '@context':'https://schema.org', '@graph':graph }).replace(/</g, '\\u003c')}</script>`;
   const escapedTitle = escapeHtml(title || 'LCF RegTech — Regulatory Data Intelligence by LCF Consulting');
   const escapedDescription = escapeHtml(description || 'Regulatory Data Intelligence by LCF Consulting.');
   const canonicalUrl = escapeHtml(canonical || `${origin}/`);
   const ogType = type === 'article' ? 'article' : 'website';
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#101d31"><meta name="description" content="${escapedDescription}"><meta name="robots" content="${escapeHtml(robots)}"><title>${escapedTitle}</title><link rel="canonical" href="${canonicalUrl}"><meta property="og:type" content="${ogType}"><meta property="og:site_name" content="LCF RegTech"><meta property="og:title" content="${escapedTitle}"><meta property="og:description" content="${escapedDescription}"><meta property="og:url" content="${canonicalUrl}"><meta name="twitter:card" content="summary"><link rel="stylesheet" href="/styles.css"><script type="module" src="/app.js"></script>${jsonLd}</head><body><div id="app">${content}</div></body></html>`;
+  const robotsValue = robots.startsWith('index')
+    ? `${robots},max-snippet:-1,max-image-preview:large,max-video-preview:-1`
+    : robots;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#101d31"><meta name="description" content="${escapedDescription}"><meta name="robots" content="${escapeHtml(robotsValue)}"><meta name="googlebot" content="${escapeHtml(robotsValue)}"><meta name="bingbot" content="${escapeHtml(robotsValue)}"><title>${escapedTitle}</title><link rel="canonical" href="${canonicalUrl}"><link rel="alternate" hreflang="pt-BR" href="${canonicalUrl}"><link rel="alternate" hreflang="x-default" href="${canonicalUrl}"><link rel="alternate" type="application/rss+xml" title="LCF RegTech — Mudanças regulatórias" href="${escapeHtml(origin)}/feed.xml"><meta property="og:type" content="${ogType}"><meta property="og:locale" content="pt_BR"><meta property="og:site_name" content="LCF RegTech"><meta property="og:title" content="${escapedTitle}"><meta property="og:description" content="${escapedDescription}"><meta property="og:url" content="${canonicalUrl}"><meta name="twitter:card" content="summary"><link rel="stylesheet" href="/styles.css"><script type="module" src="/app.js"></script>${jsonLd}</head><body><div id="app">${content}</div></body></html>`;
 }
 
 function serverConsultingCta(title, body, button, content = '') {
@@ -1889,15 +1936,84 @@ async function buildSitemapXml(db, origin) {
     for (const change of (await listPublicChanges(db, new URLSearchParams({ period: 'all' }))).changes) {
       entries.set(`/mudancas/${encodeURIComponent(change.id)}`, String(change.detected_at || today).slice(0, 10));
     }
+    for (const source of await listPublicSources(db, new URLSearchParams())) {
+      entries.set(`/fontes/${encodeURIComponent(source.id)}`, String(source.last_raw_snapshot_at || source.last_checked_at || today).slice(0, 10));
+    }
     for (const obligation of await listPublicObligations(db, new URLSearchParams())) {
-      if (Number(obligation.requirement_count) > 0 || Number(obligation.document_count) > 0) entries.set(`/obrigacoes/${encodeURIComponent(obligation.id)}`, today);
+      entries.set(`/obrigacoes/${encodeURIComponent(obligation.id)}`, String(obligation.effective_date || today).slice(0, 10));
     }
     for (const schema of await listPublicSchemas(db, new URLSearchParams())) {
-      if (schema.source_url && isOfficialSourceUrl(schema.source_url)) entries.set(`/schemas/${encodeURIComponent(schema.id)}`, today);
+      entries.set(`/schemas/${encodeURIComponent(schema.id)}`, today);
     }
   }
-  const urls = [...entries].map(([path, lastmod]) => `<url><loc>${escapeXml(`${origin}${path}`)}</loc><lastmod>${escapeXml(lastmod)}</lastmod></url>`).join('');
+  const urls = [...entries].map(([path, lastmod]) => `<url><loc>${escapeXml(`${origin}${path}`)}</loc><lastmod>${escapeXml(lastmod)}</lastmod><changefreq>${path === '/' || path === '/mudancas' ? 'daily' : 'weekly'}</changefreq></url>`).join('');
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`;
+}
+
+async function buildLlmsTxt(db, origin) {
+  const lines = [
+    '# LCF RegTech',
+    '',
+    '> Regulatory Data Intelligence by LCF Consulting. Plataforma pública brasileira para monitorar fontes regulatórias oficiais, preservar snapshots, detectar alterações de conteúdo e organizar obrigações, schemas, layouts e prazos com rastreabilidade.',
+    '',
+    `Canonical: ${origin}/`,
+    `Publisher: LCF Consulting — ${LCF_CONSULTING_SITE}`,
+    'Language: pt-BR',
+    'Jurisdiction focus: Brazil',
+    '',
+    '## Main sections',
+    `- [Visão geral](${origin}/): cobertura e mudanças recentes`,
+    `- [Mudanças](${origin}/mudancas): alterações detectadas em fontes oficiais e histórico`,
+    `- [Fontes oficiais](${origin}/fontes): fontes monitoradas e evidências de captura`,
+    `- [Órgãos](${origin}/orgaos): reguladores e autoridades cobertos`,
+    `- [Obrigações](${origin}/obrigacoes): obrigações regulatórias catalogadas`,
+    `- [Schemas](${origin}/schemas): schemas, layouts e campos regulatórios catalogados`,
+    `- [Prazos](${origin}/prazos): prazos oficiais publicados`,
+    `- [Alertas](${origin}/alertas): resumo diário gratuito por e-mail`,
+    `- [Sobre](${origin}/sobre): metodologia, limites e relação com a LCF Consulting`,
+    '',
+    '## Machine-readable discovery',
+    `- [Sitemap](${origin}/sitemap.xml)`,
+    `- [RSS feed](${origin}/feed.xml)`,
+    '',
+    '## Interpretation boundary',
+    '- Mudança de conteúdo detectada em uma fonte não equivale automaticamente a mudança jurídica confirmada.',
+    '- O conteúdo público é informativo e vinculado às fontes citadas; não substitui filing oficial, parecer jurídico ou decisão de aplicabilidade.',
+  ];
+  if (db) {
+    const [sources, changes] = await Promise.all([
+      listPublicSources(db, new URLSearchParams()),
+      listPublicChanges(db, new URLSearchParams({ period:'all' })),
+    ]);
+    if (sources.length) {
+      lines.push('', '## Monitored official sources');
+      for (const source of sources.slice(0, 100)) {
+        lines.push(`- [${source.authority || source.regulator_acronym || 'Órgão'} — ${source.source_title}](${origin}/fontes/${encodeURIComponent(source.id)})`);
+      }
+    }
+    if (changes.changes.length) {
+      lines.push('', '## Recent changes');
+      for (const change of changes.changes.slice(0, 30)) {
+        lines.push(`- [${publicChangeLevelLabel(change)} — ${change.source?.source_title || change.summary || change.id}](${origin}/mudancas/${encodeURIComponent(change.id)})`);
+      }
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
+async function buildChangeFeedXml(db, origin) {
+  const result = db ? await listPublicChanges(db, new URLSearchParams({ period:'all' })) : { changes:[] };
+  const items = result.changes.slice(0, 50).map((change) => {
+    const sourceTitle = change.source?.source_title || change.summary || 'Fonte oficial';
+    const authority = change.source?.authority || change.regulator?.acronym || change.source?.source_authority || 'Órgão regulador';
+    const link = `${origin}/mudancas/${encodeURIComponent(change.id)}`;
+    const description = change.public_category === 'DETECTED'
+      ? `Alteração de conteúdo detectada na fonte oficial ${sourceTitle}. Consulte a comparação, os snapshots e a fonte oficial no LCF RegTech.`
+      : `Alteração documentada relacionada a ${sourceTitle}. Consulte a evidência e a fonte oficial no LCF RegTech.`;
+    const pubDate = new Date(change.detected_at || Date.now());
+    return `<item><title>${escapeXml(`${authority} — ${publicChangeLevelLabel(change)} — ${sourceTitle}`)}</title><link>${escapeXml(link)}</link><guid isPermaLink="true">${escapeXml(link)}</guid><pubDate>${escapeXml(Number.isFinite(pubDate.getTime()) ? pubDate.toUTCString() : new Date().toUTCString())}</pubDate><description>${escapeXml(description)}</description></item>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>LCF RegTech — Mudanças regulatórias</title><link>${escapeXml(origin + '/mudancas')}</link><description>Atualizações detectadas em fontes regulatórias oficiais monitoradas pelo LCF RegTech.</description><language>pt-BR</language><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${items}</channel></rss>`;
 }
 
 function escapeXml(value) {
