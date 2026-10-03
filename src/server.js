@@ -870,7 +870,7 @@ async function listDocuments(db, params) {
 
 async function listSchemas(db, params) {
   const q = (params.get('q') || '').trim();
-  return await db.prepare(`SELECT sv.*, d.code AS document_code, d.name AS document_name, d.output_format, d.is_demo AS document_is_demo, o.title AS obligation_title, r.acronym AS regulator_acronym, s.source_url, s.source_title,
+  return await db.prepare(`SELECT sv.*, d.code AS document_code, d.name AS document_name, d.output_format, d.is_demo AS document_is_demo, o.title AS obligation_title, r.acronym AS regulator_acronym, COALESCE(s.source_url, sv.schema_url) AS source_url, COALESCE(s.source_title, d.name) AS source_title,
     (SELECT COUNT(*) FROM regulatory_fields f WHERE f.schema_version_id = sv.id) AS catalogued_fields,
     (SELECT COUNT(*) FROM regulatory_changes c WHERE c.entity_id = sv.id OR c.entity_id = d.id) AS linked_changes
     FROM schema_versions sv JOIN regulatory_documents d ON d.id = sv.document_id JOIN regulatory_obligations o ON o.id = d.obligation_id JOIN regulators r ON r.id = o.regulator_id LEFT JOIN regulatory_sources s ON s.id = d.source_id
@@ -879,7 +879,7 @@ async function listSchemas(db, params) {
 }
 
 async function schemaDetail(db, id) {
-  const schema = await db.prepare(`SELECT sv.*, d.code AS document_code, d.name AS document_name, d.output_format, d.is_demo AS document_is_demo, d.obligation_id, o.title AS obligation_title, r.acronym AS regulator_acronym, s.source_url, s.source_title
+  const schema = await db.prepare(`SELECT sv.*, d.code AS document_code, d.name AS document_name, d.output_format, d.is_demo AS document_is_demo, d.obligation_id, o.title AS obligation_title, r.acronym AS regulator_acronym, COALESCE(s.source_url, sv.schema_url) AS source_url, COALESCE(s.source_title, d.name) AS source_title
     FROM schema_versions sv JOIN regulatory_documents d ON d.id = sv.document_id JOIN regulatory_obligations o ON o.id = d.obligation_id JOIN regulators r ON r.id = o.regulator_id LEFT JOIN regulatory_sources s ON s.id = d.source_id WHERE sv.id = ?`).get(id);
   if (!schema) throw new ApiError('Schema version not found.', 404, 'SCHEMA_NOT_FOUND');
   const fields = await db.prepare(`SELECT f.*, (SELECT COUNT(*) FROM data_mappings m WHERE m.regulatory_field_id = f.id) AS mapping_count,
