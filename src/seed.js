@@ -690,9 +690,9 @@ export async function seedDatabase(db) {
       id:`schema-susep-catalog-${code.toLowerCase().replace(/[^a-z0-9]+/g,'-')}-current`,document_id:documentId,
       version:isBdr ? 'BDR 2026' : 'Referência vigente no catálogo oficial',effective_from:isBdr ? '2026-03-10' : null,effective_to:null,schema_type,
       schema_url,local_path:null,content_hash:null,content_hash_scope:'OFFICIAL_CATALOG_REFERENCE',
-      fields_count:isBdr ? 21 : null,
+      fields_count:isBdr ? 22 : null,
       field_inventory_scope:isBdr
-        ? 'PARTIAL — 21 propriedades demonstradas no roteiro oficial; JsonSchema oficial vinculado'
+        ? 'PARTIAL — 22 propriedades demonstradas no roteiro oficial; JsonSchema oficial vinculado'
         : 'CATALOG_ONLY — estrutura/formato oficial identificado; inventário de campos ainda não extraído',
       parse_status:isBdr ? 'CURATED_EXTRACT' : 'CATALOG_ONLY',adapter_config_json:null,status:'CURRENT'
     });
@@ -814,7 +814,7 @@ export async function seedDatabase(db) {
 }
 
 export async function bootstrapOfficialCatalog(db) {
-  const catalogVersion = '2026-10-03.4';
+  const catalogVersion = '2026-10-03.5';
   const existing = await db.prepare("SELECT value FROM system_settings WHERE key = 'official_catalog_version'").get();
   if (existing?.value === catalogVersion) return { bootstrapped: false, reason: 'official_catalog_version exists', version: catalogVersion };
 
