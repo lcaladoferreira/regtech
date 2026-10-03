@@ -1484,7 +1484,7 @@ async function serveArtifact(res, db, filename, context) {
   res.end(artifact.body);
 }
 
-const PUBLIC_SEO_PATHS = new Set(['/', '/mudancas', '/fontes', '/orgaos', '/obrigacoes', '/schemas', '/prazos', '/sobre']);
+const PUBLIC_SEO_PATHS = new Set(['/', '/mudancas', '/fontes', '/orgaos', '/obrigacoes', '/schemas', '/prazos', '/alertas', '/sobre']);
 const LCF_CONSULTING_SITE = 'https://www.lcfconsulting.com.br/';
 
 export async function handlePublicPage(req, res, db, url, requestId = '') {
@@ -1514,6 +1514,33 @@ export async function handlePublicPage(req, res, db, url, requestId = '') {
     return sendPublicResponse(req, res, 200, 'text/html; charset=utf-8', html, {
       'X-Robots-Tag': 'noindex, nofollow', 'X-Request-Id': requestId,
     });
+  }
+
+  if (pathname === '/alertas/confirmar' || pathname === '/alertas/cancelar') {
+    if (!db) return false;
+    const token = url.searchParams.get('token') || '';
+    let title; let message; let ok = true;
+    try {
+      if (pathname === '/alertas/confirmar') {
+        await confirmAlertSubscription(db, token);
+        title = 'Alertas confirmados';
+        message = 'Sua inscrição está ativa. Você passará a receber os alertas conforme as preferências escolhidas.';
+      } else {
+        await unsubscribeAlertSubscription(db, token);
+        title = 'Alertas cancelados';
+        message = 'A inscrição foi cancelada. Nenhum novo alerta será enviado para este cadastro.';
+      }
+    } catch (error) {
+      ok = false;
+      title = 'Não foi possível processar o link';
+      message = error?.message || 'O link é inválido ou não está mais disponível.';
+    }
+    const html = publicDocument({
+      title: `${title} | LCF RegTech`, description: message, canonical: `${origin}/alertas`, origin,
+      robots:'noindex,nofollow',
+      content: publicShell(`<main class="public-main"><section class="public-empty"><p class="eyebrow">LCF REGTECH · ALERTAS</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><a class="public-button primary" href="/alertas">${ok ? 'Ver preferências de alertas' : 'Voltar para alertas'}</a></section></main>`, '/alertas', origin),
+    });
+    return sendPublicResponse(req,res,ok?200:400,'text/html; charset=utf-8',html,{ 'Cache-Control':'no-store', 'X-Robots-Tag':'noindex,nofollow' });
   }
 
   const route = publicSeoRoute(pathname);
@@ -1606,6 +1633,7 @@ async function buildPublicSeoPage(db, route, query, origin) {
   if (route.path === '/schemas') return buildSchemasPage(db, query, origin);
   if (route.type === 'schema') return buildSchemaDetailPage(db, route.id, origin);
   if (route.path === '/prazos') return buildDeadlinesPage(db, query, origin);
+  if (route.path === '/alertas') return buildAlertsPage(db, origin);
   return { title: 'LCF RegTech', description: 'Regulatory Data Intelligence by LCF Consulting.', canonical, content: publicShell('<main class="public-main"><h1>LCF RegTech</h1></main>', route.path, origin) };
 }
 
@@ -1622,7 +1650,7 @@ async function buildPublicHomePage(db, origin) {
       : '<div class="public-notice"><strong>MONITORAMENTO LIVE.</strong> A base está conectada, mas ainda não há snapshot bruto capturado. O site não apresenta alterações sem evidência.</div>')
     : '<div class="public-notice"><strong>AMBIENTE DE DESENVOLVIMENTO.</strong> Registros de referência podem existir; capturas oficiais só são tratadas como verificadas quando seus bytes e SHA-256 estão armazenados.</div>';
   const content = `<main class="public-main">
-    <section class="public-hero"><p class="eyebrow">LCF REGTECH <span>·</span> REGULATORY DATA INTELLIGENCE</p><h1>O que mudou na regulação?</h1><p class="hero-lede">Saiba o que mudou nas fontes regulatórias oficiais — e onde essa mudança pode gerar impacto.</p><p class="hero-detail">Monitoramento contínuo de normas, manuais, layouts e documentos oficiais, com histórico de versões e evidências para análise regulatória e técnica.</p><div class="hero-actions"><a class="public-button primary" href="/mudancas">Ver mudanças recentes</a><a class="public-button" href="/fontes">Explorar fontes oficiais</a></div><p class="brand-byline">by <a href="${escapeHtml(consultingUrl('home'))}" target="_blank" rel="noopener noreferrer">LCF Consulting</a></p></section>
+    <section class="public-hero"><p class="eyebrow">LCF REGTECH <span>·</span> REGULATORY DATA INTELLIGENCE</p><h1>O que mudou na regulação?</h1><p class="hero-lede">Saiba o que mudou nas fontes regulatórias oficiais — e onde essa mudança pode gerar impacto.</p><p class="hero-detail">Monitoramento contínuo de normas, manuais, layouts e documentos oficiais, com histórico de versões e evidências para análise regulatória e técnica.</p><div class="hero-actions"><a class="public-button primary" href="/mudancas">Ver mudanças recentes</a><a class="public-button" href="/fontes">Explorar fontes oficiais</a><a class="public-button" href="/alertas">Receber alertas</a></div><p class="brand-byline">by <a href="${escapeHtml(consultingUrl('home'))}" target="_blank" rel="noopener noreferrer">LCF Consulting</a></p></section>
     ${dataStatus}
     <section class="public-section"><div class="section-heading"><div><p class="eyebrow">EVIDÊNCIA PÚBLICA</p><h2>O que mudou nas fontes</h2><p>Detecções recentes vinculadas a snapshots; hash alterado não significa, por si só, mudança regulatória.</p></div><a class="text-link" href="/mudancas">Ver histórico completo →</a></div><div class="public-change-list">${changeMarkup}</div></section>
     <section class="public-section"><div class="section-heading"><div><p class="eyebrow">COBERTURA</p><h2>Órgãos e fontes oficiais</h2><p>Exibimos somente authorities e fontes persistidas no registro do sistema.</p></div><a class="text-link" href="/orgaos">Explorar órgãos →</a></div><div class="authority-grid">${authorityCards}</div></section>
@@ -1785,6 +1813,17 @@ async function buildSchemaDetailPage(db, id, origin) {
   return { title: `${schema.document_code} ${schema.version} — schema | ${schema.regulator_acronym} | LCF RegTech`, description: `${schema.document_name}, versão ${schema.version}. Escopo de campos: ${schema.field_inventory_scope}. Consulte a fonte oficial.`, canonical: `${origin}/schemas/${encodeURIComponent(id)}`, content: publicShell(content, '/schemas', origin), type: 'article' };
 }
 
+async function buildAlertsPage(db, origin) {
+  const config = await publicAlertConfig(db, process.env);
+  const authorityOptions = config.authorities.map((item) => `<label class="alert-choice"><input type="checkbox" name="authorities" value="${escapeHtml(item.id)}"><span><strong>${escapeHtml(item.id)}</strong><small>${escapeHtml(item.name)}</small></span></label>`).join('');
+  const topicOptions = config.topics.map((item) => `<label class="alert-choice"><input type="checkbox" name="topics" value="${escapeHtml(item.id)}" ${item.id === 'ALL' ? 'checked' : ''}><span>${escapeHtml(item.label)}</span></label>`).join('');
+  const channelNotice = config.email_delivery_configured
+    ? '<div class="public-notice live"><strong>CANAL DE E-MAIL ATIVO.</strong> A inscrição exige confirmação por e-mail antes do primeiro alerta.</div>'
+    : '<div class="public-notice"><strong>CANAL DE E-MAIL EM CONFIGURAÇÃO.</strong> O formulário já está disponível, mas a confirmação só será enviada quando o provedor de e-mail estiver configurado.</div>';
+  const content = `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · ALERTAS</p><h1>Receba mudanças regulatórias no seu e-mail</h1><p>Escolha os órgãos e temas. O LCF RegTech envia alertas somente para mudanças detectadas em fontes oficiais, sem transformar mudança de conteúdo em conclusão jurídica automática.</p></header>${channelNotice}<section class="public-section alert-subscribe-panel"><form class="alert-subscribe-form" data-form="public-alert-subscribe"><label class="alert-email">E-mail<input type="email" name="email" required autocomplete="email" placeholder="voce@empresa.com"></label><fieldset><legend>Órgãos</legend><p class="source-boundary">Se nenhum órgão for marcado, você receberá alertas de todos.</p><div class="alert-choice-grid">${authorityOptions}</div></fieldset><fieldset><legend>Temas</legend><div class="alert-choice-grid">${topicOptions}</div></fieldset><fieldset><legend>Frequência</legend><div class="alert-choice-grid"><label class="alert-choice"><input type="radio" name="delivery_mode" value="IMMEDIATE" checked><span><strong>Assim que detectado</strong><small>Após o próximo ciclo de coleta.</small></span></label><label class="alert-choice"><input type="radio" name="delivery_mode" value="DAILY"><span><strong>Resumo diário</strong><small>Uma consolidação das mudanças do período.</small></span></label></div></fieldset><label class="alert-consent"><input type="checkbox" name="consent" required><span>Quero receber alertas do LCF RegTech por e-mail e posso cancelar a qualquer momento.</span></label><button class="public-button primary" type="submit">RECEBER ALERTAS</button><div class="alert-form-status" aria-live="polite"></div></form></section><section class="public-section"><h2>O que você recebe</h2><div class="fact-grid"><div><span>Gatilho</span><strong>Mudança real entre snapshots</strong></div><div><span>Evidência</span><strong>Fonte oficial + histórico</strong></div><div><span>Controle</span><strong>Sem alertas duplicados</strong></div></div></section>${serverConsultingCta('Precisa de alertas aplicados à sua organização?', 'A LCF Consulting pode transformar o alerta público em monitoramento customizado, com impacto sobre processos, dados, sistemas e controles específicos da empresa.', 'Falar com a LCF Consulting', 'alerts')}</main>`;
+  return { title:'Alertas regulatórios | LCF RegTech', description:'Receba por e-mail mudanças detectadas em fontes regulatórias oficiais monitoradas pelo LCF RegTech.', canonical:`${origin}/alertas`, content:publicShell(content,'/alertas',origin), type:'website' };
+}
+
 async function buildDeadlinesPage(db, query, origin) {
   const deadlines = await listPublicDeadlines(db, query);
   const content = `<main class="public-main"><header class="public-page-head"><p class="eyebrow">LCF REGTECH · PRAZOS OFICIAIS</p><h1>Prazos regulatórios publicados</h1><p>Somente registros oficiais com base identificada. Datas internas de planejamento não são exibidas nesta área pública.</p></header><div class="public-source-list">${deadlines.length ? deadlines.map((item) => `<article class="public-source-card"><span class="public-badge official">PRAZO OFICIAL</span><h2>${escapeHtml(item.regulator_acronym)} · ${escapeHtml(item.obligation_code)} · ${escapeHtml(item.obligation_title)}</h2><div class="fact-row"><span>Período ${escapeHtml(item.reference_period)}</span><span>Vencimento ${escapeHtml(item.due_date)}</span><span>Status ${escapeHtml(item.status)}</span></div><p>${escapeHtml(item.calculation_basis || 'Base de cálculo não informada')}</p>${item.source_url ? `<a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener noreferrer">Ver fonte oficial do prazo ↗</a>` : '<p>Fonte oficial não disponível.</p>'}<p><a href="/obrigacoes/${encodeURIComponent(item.obligation_id)}">Consultar obrigação relacionada →</a></p></article>`).join('') : '<div class="public-empty"><strong>Nenhum prazo oficial comprovado está disponível.</strong><p>Nenhuma data é inferida para preencher a página.</p></div>'}</div></main>`;
@@ -1797,7 +1836,7 @@ function buildAboutPage(origin) {
 }
 
 function publicShell(content, activePath, origin) {
-  const links = [['/','Visão geral'],['/mudancas','Mudanças'],['/fontes','Fontes oficiais'],['/orgaos','Órgãos'],['/obrigacoes','Obrigações'],['/schemas','Schemas'],['/prazos','Prazos'],['/sobre','Sobre']];
+  const links = [['/','Visão geral'],['/mudancas','Mudanças'],['/fontes','Fontes oficiais'],['/orgaos','Órgãos'],['/obrigacoes','Obrigações'],['/schemas','Schemas'],['/prazos','Prazos'],['/alertas','Alertas'],['/sobre','Sobre']];
   return `<div class="public-shell"><header class="public-header"><a class="public-brand" href="/" aria-label="LCF RegTech — visão geral"><span class="brand-mark">LCF</span><span><strong>LCF RegTech</strong><small>Regulatory Data Intelligence</small></span></a><nav class="public-nav" aria-label="Navegação principal">${links.map(([href,label]) => `<a class="public-nav-link ${activePath === href ? 'active' : ''}" href="${href}" ${activePath === href ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav><a class="header-consulting" href="${escapeHtml(consultingUrl('header'))}" target="_blank" rel="noopener noreferrer">by LCF Consulting ↗</a></header>${content}<footer class="public-footer"><div><a class="footer-brand" href="/">LCF RegTech</a><span>Regulatory Data Intelligence · by LCF Consulting</span><p>Uma iniciativa de inteligência regulatória da LCF Consulting.</p></div><div class="footer-links"><a href="/sobre">Sobre o projeto</a><a href="${escapeHtml(consultingUrl('footer'))}" target="_blank" rel="noopener noreferrer">LCF Consulting ↗</a><a href="/#/admin">Admin / Operations</a></div><p class="legal-note">Conteúdo informativo, vinculado às fontes citadas. Não é filing oficial, parecer jurídico ou decisão automática de aplicabilidade.</p></footer></div>`;
 }
 
@@ -1845,7 +1884,7 @@ function escapeHtml(value) {
 async function buildSitemapXml(db, origin) {
   const entries = new Map();
   const today = new Date().toISOString().slice(0, 10);
-  for (const path of ['/', '/mudancas', '/fontes', '/orgaos', '/obrigacoes', '/schemas', '/prazos', '/sobre']) entries.set(path, today);
+  for (const path of ['/', '/mudancas', '/fontes', '/orgaos', '/obrigacoes', '/schemas', '/prazos', '/alertas', '/sobre']) entries.set(path, today);
   if (db) {
     for (const change of (await listPublicChanges(db, new URLSearchParams({ period: 'all' }))).changes) {
       entries.set(`/mudancas/${encodeURIComponent(change.id)}`, String(change.detected_at || today).slice(0, 10));
