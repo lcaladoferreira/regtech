@@ -13,9 +13,10 @@ export async function publicAlertConfig(db, env = process.env) {
     email_delivery_configured: alertEmailConfigured(env),
     confirmation_required: true,
     delivery_modes: [
-      { id: 'IMMEDIATE', label: 'Quando houver mudança detectada' },
       { id: 'DAILY', label: 'Resumo diário' },
     ],
+    public_cadence: 'DAILY',
+    premium_note: 'Monitoramento e alertas com maior frequência são oferecidos em projetos customizados da LCF Consulting.',
     authorities: regulators.map((row) => ({ id: String(row.acronym || '').toUpperCase(), name: row.name })),
     topics: [
       { id: 'ALL', label: 'Todas as mudanças' },
@@ -33,8 +34,11 @@ export async function subscribeToAlerts(db, body = {}, env = process.env) {
   if (!email) throw alertError('Informe um e-mail válido.', 400, 'INVALID_EMAIL');
   if (!truthy(body.consent)) throw alertError('É necessário consentir com o recebimento dos alertas.', 400, 'CONSENT_REQUIRED');
 
-  const deliveryMode = String(body.delivery_mode || 'IMMEDIATE').toUpperCase();
-  if (!DELIVERY_MODES.has(deliveryMode)) throw alertError('Modo de entrega inválido.', 400, 'INVALID_DELIVERY_MODE');
+  // Public/free subscriptions are deliberately fixed to one daily digest.
+  // IMMEDIATE remains implemented internally as a future paid/custom capability.
+  const requestedDeliveryMode = String(body.delivery_mode || 'DAILY').toUpperCase();
+  if (!DELIVERY_MODES.has(requestedDeliveryMode)) throw alertError('Modo de entrega inválido.', 400, 'INVALID_DELIVERY_MODE');
+  const deliveryMode = 'DAILY';
 
   const config = await publicAlertConfig(db, env);
   const allowedAuthorities = new Set(config.authorities.map((row) => row.id));
