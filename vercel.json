@@ -82,6 +82,14 @@
     {
       "source": "/sitemap.xml",
       "destination": "/api/index?__page=/sitemap.xml"
+    },
+    {
+      "source": "/llms.txt",
+      "destination": "/api/index?__page=/llms.txt"
+    },
+    {
+      "source": "/feed.xml",
+      "destination": "/api/index?__page=/feed.xml"
     }
   ]
 }
